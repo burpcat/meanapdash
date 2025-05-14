@@ -6,6 +6,7 @@ from components.neuronal_activity import (
     create_half_violin_plot_by_group,
     create_half_violin_plot_by_age
 )
+import numpy as np
 
 def register_neuronal_callbacks(app):
     """
@@ -64,7 +65,7 @@ def register_neuronal_callbacks(app):
         # Debug available metrics
         print(f"\nDEBUG: Searching for recording-level metric '{metric}' by group")
         
-        # Check what metrics are directly available in by_group
+        # Debug what metrics are available in by_group
         for group in data['groups']:
             if group in data['by_group']:
                 group_metrics = [m for m in data['by_group'][group].keys() 
@@ -77,19 +78,7 @@ def register_neuronal_callbacks(app):
                     metric_values = data['by_group'][group][metric]
                     print(f"  Metric {metric} has {len(metric_values)} values directly in group data")
         
-        # Look for the metric in individual experiments
-        metric_found_in_exps = 0
-        for exp_name, exp_data in data['by_experiment'].items():
-            if 'activity' in exp_data and metric in exp_data['activity']:
-                metric_found_in_exps += 1
-                if metric_found_in_exps <= 3:  # Limit to three examples
-                    print(f"  Found {metric} = {exp_data['activity'][metric]} in {exp_name}")
-        
-        if metric_found_in_exps > 3:
-            print(f"  Found {metric} in {metric_found_in_exps} total experiments")
-        
-        # For recording-level metrics, we need to extract from the experiment data
-        # Create a new data structure specifically for recording-level metrics
+        # IMPORTANT CHANGE: Use the existing data structure instead of creating a new one
         recording_data = {
             'by_group': {},
             'by_experiment': {},
@@ -104,36 +93,28 @@ def register_neuronal_callbacks(app):
                 'exp_names': []
             }
         
-        # Extract recording-level metrics from experiments
-        for exp_name, exp_data in data['by_experiment'].items():
-            if 'group' in exp_data:
-                group = exp_data['group']
+        # Here's the key fix: directly copy metrics from the main data structure
+        for group in data['groups']:
+            if group in data['by_group'] and metric in data['by_group'][group]:
+                # Copy the metric values
+                values_to_copy = data['by_group'][group][metric]
+                recording_data['by_group'][group][metric] = values_to_copy
                 
-                # Check if metric exists in this experiment
-                if 'activity' in exp_data and metric in exp_data['activity']:
-                    metric_value = exp_data['activity'][metric]
-                    
-                    # Debug the value
-                    print(f"  Adding {metric} = {metric_value} from {exp_name} to group {group}")
-                    
-                    recording_data['by_group'][group][metric].append(metric_value)
-                    recording_data['by_group'][group]['exp_names'].append(exp_name)
-                    
-                    recording_data['by_experiment'][exp_name] = {
-                        'group': group,
-                        'activity': {
-                            metric: metric_value
-                        }
-                    }
+                # Also need to get corresponding experiment names
+                recording_data['by_group'][group]['exp_names'] = data['by_group'][group]['exp_names']
+                
+                # Debug what's being copied
+                print(f"  Copying {len(values_to_copy)} {metric} values for group {group}")
+                if values_to_copy:
+                    print(f"    First few values: {values_to_copy[:min(3, len(values_to_copy))]}")
         
         # Debug what's in final recording_data
         print(f"Final recording_data for plotting:")
         for group in recording_data['by_group']:
-            if metric in recording_data['by_group'][group]:
-                values = recording_data['by_group'][group][metric]
-                print(f"  Group {group}: {len(values)} values for {metric}")
-                if values:
-                    print(f"    Sample values: {values[:min(3, len(values))]}")
+            print(f"  Group {group}: {len(recording_data['by_group'][group][metric])} values for {metric}")
+            if recording_data['by_group'][group][metric]:
+                samples = recording_data['by_group'][group][metric][:min(3, len(recording_data['by_group'][group][metric]))]
+                print(f"    Sample values: {samples}")
         
         # Create figure
         title = f"Recording-Level {metric} by Group"
@@ -151,8 +132,9 @@ def register_neuronal_callbacks(app):
         # Get data
         data = app.data['neuronal']
         
-        # For recording-level metrics, we need to extract from the experiment data
-        # Create a new data structure specifically for recording-level metrics
+        print(f"\nDEBUG: Searching for recording-level metric '{metric}' by DIV")
+        
+        # Instead of reconstructing by DIV, we'll need to organize by DIV from the experiments
         recording_data = {
             'by_div': {},
             'by_experiment': {},
@@ -168,9 +150,9 @@ def register_neuronal_callbacks(app):
                 'groups': []
             }
         
-        # Extract recording-level metrics from experiments
+        # For each experiment, find its DIV and group, then add its metric value
         for exp_name, exp_data in data['by_experiment'].items():
-            if 'group' in exp_data:
+            if 'group' in exp_data and 'activity' in exp_data and metric in exp_data['activity']:
                 group = exp_data['group']
                 
                 # Extract DIV
@@ -178,20 +160,22 @@ def register_neuronal_callbacks(app):
                 if div_parts:
                     div = extract_div_value(div_parts[0])
                     
-                    # Check if metric exists in this experiment
-                    if 'activity' in exp_data and metric in exp_data['activity']:
-                        metric_value = exp_data['activity'][metric]
-                        recording_data['by_div'][div][metric].append(metric_value)
-                        recording_data['by_div'][div]['exp_names'].append(exp_name)
-                        recording_data['by_div'][div]['groups'].append(group)
-                        
-                        recording_data['by_experiment'][exp_name] = {
-                            'group': group,
-                            'div': div,
-                            'activity': {
-                                metric: metric_value
-                            }
-                        }
+                    metric_value = exp_data['activity'][metric]
+                    if isinstance(metric_value, (list, np.ndarray)) and len(metric_value) > 0:
+                        metric_value = float(np.mean(metric_value))
+                    
+                    print(f"  Adding {metric} = {metric_value} for {exp_name} (DIV {div})")
+                    recording_data['by_div'][div][metric].append(metric_value)
+                    recording_data['by_div'][div]['exp_names'].append(exp_name)
+                    recording_data['by_div'][div]['groups'].append(group)
+        
+        # Debug what's in final DIV data
+        print(f"Final DIV data for plotting:")
+        for div in recording_data['by_div']:
+            if recording_data['by_div'][div][metric]:
+                print(f"  DIV {div}: {len(recording_data['by_div'][div][metric])} values")
+                samples = recording_data['by_div'][div][metric][:min(3, len(recording_data['by_div'][div][metric]))]
+                print(f"    Sample values: {samples}")
         
         # Create figure
         title = f"Recording-Level {metric} by Age"
