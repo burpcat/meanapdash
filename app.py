@@ -4,7 +4,6 @@ from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import os
-
 from data_processing.data_loader import (scan_graph_data_folder, 
                                         load_neuronal_activity_data, 
                                         load_network_metrics_data,
@@ -25,7 +24,7 @@ server = app.server  # For deployment
 app.title = "MEA-NAP Dashboard"
 
 # Load data
-GRAPH_DATA_PATH = "/Volumes/GDrive/MEA_work/combined_data/output/div5053/GraphData"  # Update with your GraphData path
+GRAPH_DATA_PATH = "/Volumes/GDrive/MEA_work/combined_data/output/div5053rec/GraphData"  # Update with your GraphData path
 
 # Scan GraphData folder
 print("Scanning GraphData folder...")
@@ -51,6 +50,21 @@ app.data = {
     'network': network_data,
     'cartography': cartography_data
 }
+
+# Add this after loading all data in app.py - after line 42
+print("\nDEBUG: Checking available neuronal metrics")
+
+# Check recording-level metrics
+print("Recording-level metrics:")
+for group in neuronal_data['by_group']:
+    print(f"\nGroup: {group}")
+    for metric in ['FRmean', 'FRmedian', 'numActiveElec', 'NBurstRate', 
+                  'meanNumChansInvolvedInNbursts', 'meanNBstLengthS']:
+        if metric in neuronal_data['by_group'][group]:
+            data_values = neuronal_data['by_group'][group][metric]
+            print(f"  {metric}: {len(data_values)} values, type: {type(data_values)} - Sample: {data_values[:2] if data_values else 'None'}")
+        else:
+            print(f"  {metric}: Not found in data")
 
 # Create app layout
 app.layout = create_layout(app)
