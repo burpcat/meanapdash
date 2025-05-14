@@ -61,6 +61,33 @@ def register_neuronal_callbacks(app):
         # Get data
         data = app.data['neuronal']
         
+        # Debug available metrics
+        print(f"\nDEBUG: Searching for recording-level metric '{metric}' by group")
+        
+        # Check what metrics are directly available in by_group
+        for group in data['groups']:
+            if group in data['by_group']:
+                group_metrics = [m for m in data['by_group'][group].keys() 
+                                if m not in ['exp_names', 'channels', 'FR', 'channelBurstRate', 
+                                            'channelBurstDur', 'channelISIwithinBurst', 
+                                            'channeISIoutsideBurst', 'channelFracSpikesInBursts']]
+                print(f"Group {group} has metrics: {group_metrics}")
+                
+                if metric in data['by_group'][group]:
+                    metric_values = data['by_group'][group][metric]
+                    print(f"  Metric {metric} has {len(metric_values)} values directly in group data")
+        
+        # Look for the metric in individual experiments
+        metric_found_in_exps = 0
+        for exp_name, exp_data in data['by_experiment'].items():
+            if 'activity' in exp_data and metric in exp_data['activity']:
+                metric_found_in_exps += 1
+                if metric_found_in_exps <= 3:  # Limit to three examples
+                    print(f"  Found {metric} = {exp_data['activity'][metric]} in {exp_name}")
+        
+        if metric_found_in_exps > 3:
+            print(f"  Found {metric} in {metric_found_in_exps} total experiments")
+        
         # For recording-level metrics, we need to extract from the experiment data
         # Create a new data structure specifically for recording-level metrics
         recording_data = {
@@ -85,6 +112,10 @@ def register_neuronal_callbacks(app):
                 # Check if metric exists in this experiment
                 if 'activity' in exp_data and metric in exp_data['activity']:
                     metric_value = exp_data['activity'][metric]
+                    
+                    # Debug the value
+                    print(f"  Adding {metric} = {metric_value} from {exp_name} to group {group}")
+                    
                     recording_data['by_group'][group][metric].append(metric_value)
                     recording_data['by_group'][group]['exp_names'].append(exp_name)
                     
@@ -94,6 +125,15 @@ def register_neuronal_callbacks(app):
                             metric: metric_value
                         }
                     }
+        
+        # Debug what's in final recording_data
+        print(f"Final recording_data for plotting:")
+        for group in recording_data['by_group']:
+            if metric in recording_data['by_group'][group]:
+                values = recording_data['by_group'][group][metric]
+                print(f"  Group {group}: {len(values)} values for {metric}")
+                if values:
+                    print(f"    Sample values: {values[:min(3, len(values))]}")
         
         # Create figure
         title = f"Recording-Level {metric} by Group"
