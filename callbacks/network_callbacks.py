@@ -18,11 +18,11 @@ def register_network_callbacks(app):
         The Dash application instance
     """
     
-    # Callback for node-level network metrics by group
+    # Modified callback for node-level network metrics by group
     @app.callback(
         Output("network-node-group-plot", "figure"),
         [Input("network-node-group-metric", "value"),
-         Input("network-node-group-lag", "value")]
+        Input("network-node-group-lag", "value")]
     )
     def update_network_node_group_plot(metric, lag):
         if not metric or not lag:
@@ -31,9 +31,72 @@ def register_network_callbacks(app):
         # Get data
         data = app.data['network']
         
+        # Debug available metrics and groups
+        print(f"\nDEBUG: Searching for node-level network metric '{metric}' for lag {lag} by group")
+        
+        # Check data structure
+        print(f"Network data structure has keys: {list(data.keys())}")
+        print(f"Groups in data: {data['groups']}")
+        print(f"Divs in data: {data['divs']}")
+        print(f"Lags in data: {data['lags']}")
+        
+        # Check if data is organized by group and lag
+        for group in data['groups']:
+            if group in data['by_group']:
+                if lag in data['by_group'][group]:
+                    if 'node_metrics' in data['by_group'][group][lag]:
+                        node_metrics = data['by_group'][group][lag]['node_metrics']
+                        available_metrics = list(node_metrics.keys())
+                        print(f"Group {group}, lag {lag} has node metrics: {available_metrics}")
+                        if metric in node_metrics:
+                            values = node_metrics[metric]
+                            print(f"  Found {len(values)} values for {metric}")
+                            if len(values) > 0:
+                                print(f"    Sample: {values[:min(3, len(values))]} (type: {type(values[0])})")
+                        else:
+                            print(f"  Metric {metric} not found in group {group}")
+        
+        # Create the data structure for plotting
+        recording_data = {
+            'by_group': {},
+            'by_experiment': {},
+            'groups': data['groups'],
+            'divs': data['divs']
+        }
+        
+        # Initialize group data
+        for group in data['groups']:
+            recording_data['by_group'][group] = {
+                metric: [],
+                'exp_names': []
+            }
+        
+        # Copy data from the loaded structure
+        for group in data['groups']:
+            if group in data['by_group'] and lag in data['by_group'][group]:
+                if 'node_metrics' in data['by_group'][group][lag] and metric in data['by_group'][group][lag]['node_metrics']:
+                    # Copy metric values
+                    values = data['by_group'][group][lag]['node_metrics'][metric]
+                    recording_data['by_group'][group][metric] = values
+                    
+                    # Copy experiment names
+                    recording_data['by_group'][group]['exp_names'] = data['by_group'][group][lag]['node_metrics']['exp_names']
+                    
+                    print(f"  Copied {len(values)} values for {group}")
+        
+        # Debug what's in the final data
+        print(f"Final data for plotting:")
+        for group in recording_data['by_group']:
+            vals = recording_data['by_group'][group][metric]
+            if vals:
+                print(f"  Group {group}: {len(vals)} values")
+                print(f"    Sample: {vals[:min(3, len(vals))]}")
+            else:
+                print(f"  Group {group}: No values")
+        
         # Create figure
-        title = f"Node-Level {metric} by Group"
-        return create_network_half_violin_plot_by_group(data, metric, lag, title, level='node')
+        title = f"Node-Level {metric} by Group (Lag {lag} ms)"
+        return create_network_half_violin_plot_by_group(recording_data, metric, lag, title, level='node')
     
     # Callback for node-level network metrics by age
     @app.callback(

@@ -26,6 +26,22 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     plotly.graph_objs._figure.Figure
         Plotly figure object
     """
+    print(f"\nDEBUG: Creating network half violin plot by group for metric: {metric}, lag: {lag}")
+    
+    # Debug the data structure
+    for group in data['groups']:
+        if group in data['by_group']:
+            metrics = list(data['by_group'][group].keys())
+            print(f"Group {group} has metrics: {metrics}")
+            
+            if metric in data['by_group'][group]:
+                values = data['by_group'][group][metric]
+                print(f"  Found {len(values)} {metric} values for group {group}")
+                if values:
+                    print(f"    Sample values: {values[:min(3, len(values))]}, type: {type(values[0])}")
+            else:
+                print(f"  Metric {metric} not found in group {group}")
+    
     # Create figure with subplots for each group
     groups = data['groups']
     fig = make_subplots(rows=1, cols=len(groups), 
@@ -47,44 +63,58 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     # Maximum y value for scaling
     max_y = 0
     
-    # Determine which data to use based on level
-    data_key = 'node_metrics' if level == 'node' else 'network_metrics'
-    
     # Create half violin plots for each group
     for col, group in enumerate(groups, 1):
+        if group not in data['by_group']:
+            print(f"Group {group} not found in data")
+            continue
+            
         group_data = data['by_group'][group]
         
-        if lag not in group_data:
+        if metric not in group_data:
+            print(f"Metric {metric} not found in group {group}")
             continue
-            
-        lag_data = group_data[lag]
         
-        if data_key not in lag_data or metric not in lag_data[data_key]:
+        # Make sure we're working with a list
+        values = group_data[metric]
+        if isinstance(values, np.ndarray):
+            values = values.tolist()
+        elif not isinstance(values, list):
+            values = [values]
+            
+        # Filter out NaN and inf values
+        filtered_values = [v for v in values if v is not None and np.isfinite(v)]
+        
+        if not filtered_values:
+            print(f"No valid values for group {group}")
             continue
             
-        metric_data = lag_data[data_key][metric]
+        # Split values by DIV
         divs = sorted(data['divs'])
         
+        # Try extracting experiment names if available
+        exp_names = []
+        if 'exp_names' in group_data:
+            exp_names = group_data['exp_names']
+        
         for div_idx, div in enumerate(divs):
-            div_data = []
+            div_values = []
             
-            # Find experiments for this group and DIV
-            for exp_idx, exp_name in enumerate(lag_data[data_key]['exp_names']):
-                if any(f'DIV{div}' in exp_name for div_part in exp_name.split('_')):
-                    # Extract corresponding data for this experiment
-                    exp_data = data['by_experiment'].get(exp_name, {})
-                    if 'lags' in exp_data and lag in exp_data['lags'] and data_key in exp_data['lags'][lag]:
-                        exp_metric_data = exp_data['lags'][lag][data_key].get(metric, [])
-                        if isinstance(exp_metric_data, np.ndarray):
-                            div_data.extend(exp_metric_data.flatten())
-                        else:
-                            div_data.append(exp_metric_data)
+            if exp_names:
+                # Filter values by DIV using experiment names
+                for i, exp_name in enumerate(exp_names):
+                    if i < len(filtered_values) and any(f'DIV{div}' in part for part in exp_name.split('_')):
+                        div_values.append(filtered_values[i])
+            else:
+                # No experiment names - split values evenly across DIVs
+                # (This is a fallback and may not be accurate)
+                div_values = filtered_values
             
-            if not div_data:
+            if not div_values:
                 continue
                 
             # Calculate KDE data
-            kde_data = calculate_half_violin_data(div_data)
+            kde_data = calculate_half_violin_data(div_values)
             
             # Update max_y for scaling
             max_y = max(max_y, max(kde_data['raw_data']) if kde_data['raw_data'].size > 0 else 0)
@@ -155,7 +185,7 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     
     # Update layout
     fig.update_layout(
-        title=f"{title} (Lag: {lag} ms)",
+        title=title,
         height=600,
         margin=dict(l=50, r=50, t=80, b=50),
         legend=dict(
@@ -192,7 +222,7 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     
     fig.update_yaxes(
         title_text=metric_labels.get(metric, metric),
-        range=[0, max_y * 1.1]  # Add 10% padding
+        range=[0, max_y * 1.1] if max_y > 0 else None  # Add 10% padding if we have data
     )
     
     return fig
