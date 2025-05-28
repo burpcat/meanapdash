@@ -545,6 +545,9 @@ def load_network_metrics_data(graph_data_folder, data_info):
         }
     
     # Loop through groups and experiments
+    print("\nDEBUG: Examining node metrics files...")
+    sample_files_checked = 0
+    
     for group in data_info['groups']:
         for exp in data_info['experiments'][group]:
             # Extract DIV
@@ -565,6 +568,31 @@ def load_network_metrics_data(graph_data_folder, data_info):
                 node_file = os.path.join(graph_data_folder, group, exp, f"{exp}_nodeMetrics_lag{lag}.mat")
                 if os.path.exists(node_file):
                     try:
+                        if sample_files_checked < 3:  # Limit to 3 files to avoid too much logging
+                            sample_files_checked += 1
+                            print(f"\nExamining node metrics file: {node_file}")
+                            print(f"File exists: {os.path.exists(node_file)}")
+                            
+                            node_data = load_mat_file(node_file)
+                            print(f"Keys in node_data: {list(node_data.keys())}")
+                            
+                            # Check the structure more deeply
+                            if 'nodeMetrics' in node_data:
+                                print("nodeMetrics key found in file")
+                                node_metrics = node_data['nodeMetrics']
+                                if hasattr(node_metrics, '_fieldnames'):
+                                    print(f"nodeMetrics fields: {node_metrics._fieldnames}")
+                                elif isinstance(node_metrics, dict):
+                                    print(f"nodeMetrics keys: {list(node_metrics.keys())}")
+                            
+                            # Check what's being extracted
+                            node_metrics_struct = extract_matlab_struct_data(node_data, 'nodeMetrics', node_data)
+                            for metric in ['degree', 'strength', 'clustering']:
+                                metric_data = extract_matlab_struct_data(node_metrics_struct, metric, [])
+                                print(f"Extracted {metric}: {type(metric_data)}, length: {len(safe_flatten_array(metric_data))}")
+                                if len(safe_flatten_array(metric_data)) > 0:
+                                    print(f"  Sample values: {safe_flatten_array(metric_data)[:3]}")
+                        
                         node_data = load_mat_file(node_file)
                         
                         # Process the nodeMetrics structure using our robust extraction function

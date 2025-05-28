@@ -20,9 +20,9 @@ def register_network_callbacks(app):
     
     # Modified callback for node-level network metrics by group
     @app.callback(
-        Output("network-node-group-plot", "figure"),
-        [Input("network-node-group-metric", "value"),
-        Input("network-node-group-lag", "value")]
+    Output("network-node-group-plot", "figure"),
+    [Input("network-node-group-metric", "value"),
+    Input("network-node-group-lag", "value")]
     )
     def update_network_node_group_plot(metric, lag):
         if not metric or not lag:
@@ -53,6 +53,8 @@ def register_network_callbacks(app):
                             print(f"  Found {len(values)} values for {metric}")
                             if len(values) > 0:
                                 print(f"    Sample: {values[:min(3, len(values))]} (type: {type(values[0])})")
+                            else:
+                                print(f"  Metric {metric} has 0 values in group {group}")
                         else:
                             print(f"  Metric {metric} not found in group {group}")
         
@@ -93,6 +95,31 @@ def register_network_callbacks(app):
                 print(f"    Sample: {vals[:min(3, len(vals))]}")
             else:
                 print(f"  Group {group}: No values")
+        
+        # If no group data is available, try to get data from individual experiments
+        if all(len(recording_data['by_group'][group][metric]) == 0 for group in data['groups']):
+            print("No group-level data found, trying to collect from experiments...")
+            
+            # Try to rebuild from experiments
+            for exp_name, exp_data in data['by_experiment'].items():
+                if 'group' in exp_data and 'lags' in exp_data and lag in exp_data['lags']:
+                    group = exp_data['group']
+                    if 'node_metrics' in exp_data['lags'][lag] and metric in exp_data['lags'][lag]['node_metrics']:
+                        values = exp_data['lags'][lag]['node_metrics'][metric]
+                        if values:
+                            print(f"Found {len(safe_flatten_array(values))} {metric} values in {exp_name}")
+                            recording_data['by_group'][group][metric].extend(safe_flatten_array(values))
+                            recording_data['by_group'][group]['exp_names'].append(exp_name)
+            
+            # Debug what we found
+            print("After collecting from experiments:")
+            for group in recording_data['by_group']:
+                vals = recording_data['by_group'][group][metric]
+                if vals:
+                    print(f"  Group {group}: {len(vals)} values")
+                    print(f"    Sample: {vals[:min(3, len(vals))]}")
+                else:
+                    print(f"  Group {group}: Still no values")
         
         # Create figure
         title = f"Node-Level {metric} by Group (Lag {lag} ms)"
