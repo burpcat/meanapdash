@@ -1,7 +1,7 @@
 # callbacks/network_callbacks.py
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
-from data_processing.utilities import extract_div_value
+from data_processing.utilities import extract_div_value, safe_flatten_array
 from components.network_activity import (
     create_network_half_violin_plot_by_group,
     create_metrics_by_lag_plot,

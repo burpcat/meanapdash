@@ -13,7 +13,7 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     data : dict
         Dictionary with network data
     metric : str
-        Metric to visualize
+        Metric to visualize (using MEA-NAP field names like 'ND', 'NS', 'Dens', etc.)
     lag : int
         Lag value
     title : str
@@ -31,16 +31,19 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
     # Debug the data structure
     for group in data['groups']:
         if group in data['by_group']:
-            metrics = list(data['by_group'][group].keys())
-            print(f"Group {group} has metrics: {metrics}")
-            
-            if metric in data['by_group'][group]:
-                values = data['by_group'][group][metric]
-                print(f"  Found {len(values)} {metric} values for group {group}")
-                if values:
-                    print(f"    Sample values: {values[:min(3, len(values))]}, type: {type(values[0])}")
-            else:
-                print(f"  Metric {metric} not found in group {group}")
+            if lag in data['by_group'][group]:
+                level_key = 'node_metrics' if level == 'node' else 'network_metrics'
+                if level_key in data['by_group'][group][lag]:
+                    metrics = list(data['by_group'][group][lag][level_key].keys())
+                    print(f"Group {group}, lag {lag} has {level} metrics: {metrics}")
+                    
+                    if metric in data['by_group'][group][lag][level_key]:
+                        values = data['by_group'][group][lag][level_key][metric]
+                        print(f"  Found {len(values)} {metric} values for group {group}")
+                        if values:
+                            print(f"    Sample values: {values[:min(3, len(values))]}, type: {type(values[0]) if values else 'None'}")
+                    else:
+                        print(f"  Metric {metric} not found in group {group}")
     
     # Create figure with subplots for each group
     groups = data['groups']
@@ -69,10 +72,15 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
             print(f"Group {group} not found in data")
             continue
             
-        group_data = data['by_group'][group]
+        if lag not in data['by_group'][group]:
+            print(f"Lag {lag} not found in group {group}")
+            continue
+        
+        level_key = 'node_metrics' if level == 'node' else 'network_metrics'
+        group_data = data['by_group'][group][lag][level_key]
         
         if metric not in group_data:
-            print(f"Metric {metric} not found in group {group}")
+            print(f"Metric {metric} not found in group {group} at lag {lag}")
             continue
         
         # Make sure we're working with a list
@@ -206,18 +214,36 @@ def create_network_half_violin_plot_by_group(data, metric, lag, title, level='no
             row=1, col=col
         )
     
-    # Update y-axes
+    # Update y-axes with proper MEA-NAP metric labels
     metric_labels = {
-        'degree': 'Node Degree',
-        'strength': 'Node Strength',
-        'clustering': 'Clustering Coefficient',
-        'betweenness': 'Betweenness Centrality',
-        'efficiency_local': 'Local Efficiency',
-        'participation': 'Participation Coefficient',
-        'density': 'Network Density',
-        'efficiency_global': 'Global Efficiency',
-        'modularity': 'Modularity (Q)',
-        'smallworldness': 'Small-worldness'
+        # Node-level metrics
+        'ND': 'Node Degree',
+        'NS': 'Node Strength', 
+        'MEW': 'Mean Edge Weight',
+        'Eloc': 'Local Efficiency',
+        'BC': 'Betweenness Centrality',
+        'PC': 'Participation Coefficient',
+        'Z': 'Within-Module Z-score',
+        'aveControl': 'Average Controllability',
+        'modalControl': 'Modal Controllability',
+        
+        # Network-level metrics
+        'aN': 'Active Nodes',
+        'Dens': 'Network Density',
+        'NDmean': 'Mean Node Degree',
+        'NDtop25': 'Top 25% Node Degree',
+        'sigEdgesMean': 'Mean Significant Edge Weight',
+        'sigEdgesTop10': 'Top 10% Edge Weight',
+        'NSmean': 'Mean Node Strength',
+        'ElocMean': 'Mean Local Efficiency',
+        'CC': 'Clustering Coefficient',
+        'nMod': 'Number of Modules',
+        'Q': 'Modularity',
+        'PL': 'Path Length',
+        'PCmean': 'Mean Participation Coefficient',
+        'Eglob': 'Global Efficiency',
+        'SW': 'Small-worldness Sigma',
+        'SWw': 'Small-worldness Omega'
     }
     
     fig.update_yaxes(
@@ -238,7 +264,7 @@ def create_metrics_by_lag_plot(data, group, metric):
     group : str
         Group to visualize
     metric : str
-        Metric to visualize
+        Metric to visualize (using MEA-NAP field names)
         
     Returns:
     --------
@@ -261,9 +287,21 @@ def create_metrics_by_lag_plot(data, group, metric):
     ]
     
     # Get data for the group
-    group_data = data['by_group'].get(group, {})
+    if group not in data['by_group']:
+        fig.update_layout(
+            title=f"No data available for group {group}",
+            height=600
+        )
+        return fig
+    
+    group_data = data['by_group'][group]
     divs = sorted(data['divs'])
     lags = sorted(data['lags'])
+    
+    # Determine if this is a node or network metric
+    is_network_metric = metric in ['aN', 'Dens', 'NDmean', 'NDtop25', 'sigEdgesMean', 'sigEdgesTop10', 
+                                  'NSmean', 'ElocMean', 'CC', 'nMod', 'Q', 'PL', 'PCmean', 'Eglob', 'SW', 'SWw']
+    level_key = 'network_metrics' if is_network_metric else 'node_metrics'
     
     # For each DIV, plot metric across lags
     for div_idx, div in enumerate(divs):
@@ -275,20 +313,25 @@ def create_metrics_by_lag_plot(data, group, metric):
         y_errors = []
         
         for lag in lags:
-            if lag in group_data:
-                lag_data = group_data[lag]['network_metrics']
+            if lag in group_data and level_key in group_data[lag]:
+                lag_data = group_data[lag][level_key]
                 
-                # Find experiments for this DIV
-                div_values = []
-                for exp_idx, exp_name in enumerate(lag_data['exp_names']):
-                    if any(f'DIV{div}' in part for part in exp_name.split('_')):
-                        if exp_idx < len(lag_data[metric]):
-                            div_values.append(lag_data[metric][exp_idx])
-                
-                if div_values:
-                    x_values.append(lag)
-                    y_values.append(np.mean(div_values))
-                    y_errors.append(np.std(div_values) / np.sqrt(len(div_values)))  # SEM
+                if metric in lag_data and 'exp_names' in lag_data:
+                    # Find experiments for this DIV
+                    div_values = []
+                    for exp_idx, exp_name in enumerate(lag_data['exp_names']):
+                        if any(f'DIV{div}' in part for part in exp_name.split('_')):
+                            if exp_idx < len(lag_data[metric]):
+                                div_values.append(lag_data[metric][exp_idx])
+                    
+                    if div_values:
+                        # Filter out NaN values
+                        div_values = [v for v in div_values if v is not None and np.isfinite(v)]
+                        
+                        if div_values:
+                            x_values.append(lag)
+                            y_values.append(np.mean(div_values))
+                            y_errors.append(np.std(div_values) / np.sqrt(len(div_values)))  # SEM
         
         if x_values:
             # Add line plot
@@ -307,12 +350,36 @@ def create_metrics_by_lag_plot(data, group, metric):
                 )
             )
     
-    # Update layout
+    # Update layout with proper MEA-NAP metric labels
     metric_labels = {
-        'density': 'Network Density',
-        'efficiency_global': 'Global Efficiency',
-        'modularity': 'Modularity (Q)',
-        'smallworldness': 'Small-worldness'
+        # Network-level metrics
+        'aN': 'Active Nodes',
+        'Dens': 'Network Density',
+        'NDmean': 'Mean Node Degree',
+        'NDtop25': 'Top 25% Node Degree',
+        'sigEdgesMean': 'Mean Significant Edge Weight',
+        'sigEdgesTop10': 'Top 10% Edge Weight',
+        'NSmean': 'Mean Node Strength',
+        'ElocMean': 'Mean Local Efficiency',
+        'CC': 'Clustering Coefficient',
+        'nMod': 'Number of Modules',
+        'Q': 'Modularity',
+        'PL': 'Path Length',
+        'PCmean': 'Mean Participation Coefficient',
+        'Eglob': 'Global Efficiency',
+        'SW': 'Small-worldness Sigma',
+        'SWw': 'Small-worldness Omega',
+        
+        # Node-level metrics
+        'ND': 'Node Degree',
+        'NS': 'Node Strength', 
+        'MEW': 'Mean Edge Weight',
+        'Eloc': 'Local Efficiency',
+        'BC': 'Betweenness Centrality',
+        'PC': 'Participation Coefficient',
+        'Z': 'Within-Module Z-score',
+        'aveControl': 'Average Controllability',
+        'modalControl': 'Modal Controllability'
     }
     
     fig.update_layout(
@@ -358,16 +425,23 @@ def create_node_cartography_plot(data, group, lag, div=None):
         
         # Role colors
         role_colors = {
-            'Peripheral': 'rgba(0.8, 0.902, 0.310, 0.7)',
-            'Non-hub connector': 'rgba(0.580, 0.706, 0.278, 0.7)',
-            'Non-hub kinless': 'rgba(0.369, 0.435, 0.122, 0.7)',
-            'Provincial hub': 'rgba(0.2, 0.729, 0.949, 0.7)',
-            'Connector hub': 'rgba(0.078, 0.424, 0.835, 0.7)',
-            'Kinless hub': 'rgba(0.016, 0.235, 0.498, 0.7)'
+            'Peripheral': 'rgba(204, 230, 79, 0.7)',
+            'Non-hub connector': 'rgba(148, 180, 71, 0.7)',
+            'Non-hub kinless': 'rgba(94, 111, 31, 0.7)',
+            'Provincial hub': 'rgba(51, 186, 242, 0.7)',
+            'Connector hub': 'rgba(20, 108, 213, 0.7)',
+            'Kinless hub': 'rgba(4, 60, 127, 0.7)'
         }
         
         # Get data for the group and lag
-        group_data = data['by_group'].get(group, {})
+        if group not in data['by_group'] or lag not in data['by_group'][group]:
+            fig.update_layout(
+                title=f"No cartography data available for Group {group}, Lag {lag} ms",
+                height=400
+            )
+            return fig
+        
+        group_data = data['by_group'][group][lag]
         divs = sorted(data['divs'])
         
         # For each role, plot proportion across DIVs
@@ -442,12 +516,12 @@ def create_node_cartography_plot(data, group, lag, div=None):
         
         # Role colors
         role_colors = {
-            'Peripheral': 'rgba(0.8, 0.902, 0.310, 0.7)',
-            'Non-hub connector': 'rgba(0.580, 0.706, 0.278, 0.7)',
-            'Non-hub kinless': 'rgba(0.369, 0.435, 0.122, 0.7)',
-            'Provincial hub': 'rgba(0.2, 0.729, 0.949, 0.7)',
-            'Connector hub': 'rgba(0.078, 0.424, 0.835, 0.7)',
-            'Kinless hub': 'rgba(0.016, 0.235, 0.498, 0.7)'
+            'Peripheral': 'rgba(204, 230, 79, 0.7)',
+            'Non-hub connector': 'rgba(148, 180, 71, 0.7)',
+            'Non-hub kinless': 'rgba(94, 111, 31, 0.7)',
+            'Provincial hub': 'rgba(51, 186, 242, 0.7)',
+            'Connector hub': 'rgba(20, 108, 213, 0.7)',
+            'Kinless hub': 'rgba(4, 60, 127, 0.7)'
         }
         
         # Initialize cart_data to avoid UnboundLocalError
@@ -464,9 +538,10 @@ def create_node_cartography_plot(data, group, lag, div=None):
                     cart_data = exp_data['lags'][lag]
                     found_data = True
                     
-                    if 'p' in cart_data and 'z' in cart_data and 'roles' in cart_data:
-                        p = cart_data['p'].flatten() if isinstance(cart_data['p'], np.ndarray) else [cart_data['p']]
-                        z = cart_data['z'].flatten() if isinstance(cart_data['z'], np.ndarray) else [cart_data['z']]
+                    # Use Z and PC (MEA-NAP field names) for scatter plot
+                    if 'PC' in cart_data and 'Z' in cart_data and 'roles' in cart_data:
+                        pc = cart_data['PC'].flatten() if isinstance(cart_data['PC'], np.ndarray) else [cart_data['PC']]
+                        z = cart_data['Z'].flatten() if isinstance(cart_data['Z'], np.ndarray) else [cart_data['Z']]
                         roles = cart_data['roles'].flatten() if isinstance(cart_data['roles'], np.ndarray) else [cart_data['roles']]
                         
                         # Add data points by role
@@ -477,7 +552,7 @@ def create_node_cartography_plot(data, group, lag, div=None):
                                 if role_indices:
                                     fig.add_trace(
                                         go.Scatter(
-                                            x=[p[i] for i in role_indices],
+                                            x=[pc[i] for i in role_indices],
                                             y=[z[i] for i in role_indices],
                                             mode='markers',
                                             name=role,
@@ -530,7 +605,7 @@ def create_node_cartography_plot(data, group, lag, div=None):
         # Update layout
         fig.update_layout(
             title=f"Node Cartography for Group {group}, DIV {div} (Lag: {lag} ms)",
-            xaxis_title="Participation Coefficient (P)",
+            xaxis_title="Participation Coefficient (PC)",
             yaxis_title="Within-module Degree Z-score (Z)",
             height=600,
             margin=dict(l=50, r=50, t=80, b=50),

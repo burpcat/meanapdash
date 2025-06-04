@@ -25,7 +25,7 @@ server = app.server  # For deployment
 app.title = "MEA-NAP Dashboard"
 
 # Load data
-GRAPH_DATA_PATH = "/Volumes/GDrive/MEA_work/combined_data/output/div5053rec1/GraphData"  # Update with your GraphData path
+GRAPH_DATA_PATH = "/Volumes/GDrive/MEA_work/combined_data/output/div5053rec2/GraphData"  # Update with your GraphData path
 
 # Scan GraphData folder
 print("Scanning GraphData folder...")
