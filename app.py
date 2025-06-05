@@ -1,4 +1,3 @@
-# app.py - Merged Dashboard with Dashboard 1 UI + Dashboard 2 Functionality
 import os
 import dash
 from dash import dcc, html, Input, Output, State
@@ -394,16 +393,16 @@ def update_visualization(groups, selected_divs, metric, viz_type, lag, current_s
             # Neuronal activity visualizations using Dashboard 2's functions
             if comparison in ['nodebygroup']:
                 title = f"Electrode-Level {metric} by Group"
-                return create_half_violin_plot_by_group(app.data['neuronal'], metric, title)
+                return create_half_violin_plot_by_group(app.data['neuronal'], metric, title, groups, selected_divs)
             elif comparison in ['nodebyage']:
                 title = f"Electrode-Level {metric} by Age"
-                return create_half_violin_plot_by_age(app.data['neuronal'], metric, title)
+                return create_half_violin_plot_by_age(app.data['neuronal'], metric, title, groups, selected_divs)
             elif comparison in ['recordingsbygroup']:
                 title = f"Recording-Level {metric} by Group"
-                return create_half_violin_plot_by_group(app.data['neuronal'], metric, title)
+                return create_half_violin_plot_by_group(app.data['neuronal'], metric, title, groups, selected_divs)
             elif comparison in ['recordingsbyage']:
                 title = f"Recording-Level {metric} by Age"
-                return create_half_violin_plot_by_age(app.data['neuronal'], metric, title)
+                return create_half_violin_plot_by_age(app.data['neuronal'], metric, title, groups, selected_divs)
                 
         elif activity == 'network':
             # Network activity visualizations using Dashboard 2's functions
