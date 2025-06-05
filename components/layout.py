@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 
 def create_layout(app):
     """
-    Create the main layout of the dashboard
+    Create the main layout of the dashboard with dynamic data loading capability
     
     Parameters:
     -----------
@@ -17,411 +17,251 @@ def create_layout(app):
     html.Div
         The main layout div
     """
-    # Extract unique values for filters
-    groups = app.data['info']['groups']
-    divs = sorted(set(div for group_divs in app.data['info']['divs'].values() for div in group_divs.keys()))
-    lags = app.data['info']['lags']
     
-    # Create the layout
+    # Create the layout with dynamic data loading support
     return html.Div([
         # Header
-        dbc.Navbar(
-            dbc.Container([
-                html.A(
-                    dbc.Row([
-                        dbc.Col(dbc.NavbarBrand("MEA-NAP Dashboard", className="ms-2")),
-                    ], align="center"),
-                ),
+        html.Div([
+            html.H1('MEA-NAP Dashboard', style={'margin': '0'}),
+            html.P("Interactive visualization of Microelectrode Array data from the MEA-NAP pipeline",
+                   style={'margin': '0 0 15px 0'})
+        ], className='header'),
+        
+        # Main content container
+        html.Div([
+            # Data loading section
+            html.Div([
+                html.H3('Data Loading', style={'marginTop': '0', 'marginBottom': '15px'}),
+                html.Div([
+                    html.Label('GraphData Directory:', style={'fontWeight': 'bold', 'marginRight': '10px'}),
+                    dcc.Input(
+                        id='data-dir-input', 
+                        type='text', 
+                        placeholder='/path/to/your/GraphData/folder',
+                        value='',
+                        className='data-input',
+                        style={
+                            'width': '500px',
+                            'padding': '8px',
+                            'marginRight': '10px',
+                            'border': '1px solid #ccc',
+                            'borderRadius': '4px'
+                        }
+                    ),
+                    html.Button(
+                        'Load Data', 
+                        id='load-data-button',
+                        n_clicks=0,
+                        className='load-button',
+                        style={
+                            'padding': '8px 16px',
+                            'backgroundColor': '#007bff',
+                            'color': 'white',
+                            'border': 'none',
+                            'borderRadius': '4px',
+                            'cursor': 'pointer'
+                        }
+                    )
+                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '10px'}),
+                
+                # Status message
+                html.Div(
+                    id='status-message',
+                    style={'minHeight': '25px'},
+                    className=''
+                )
+            ], className='filter-container', style={'marginBottom': '20px'}),
+            
+            # Main dashboard content
+            html.Div([
+                # Tab organization
+                html.Div([
+                    # Main Tabs: Activity Type
+                    dcc.Tabs(id='activity-tabs', value='neuronal', children=[
+                        # Tab 1: Neuronal Activity
+                        dcc.Tab(label='Neuronal Activity', value='neuronal', children=[
+                            # Subtabs for Neuronal Activity
+                            dcc.Tabs(id='neuronal-tabs', value='nodebygroup', children=[
+                                dcc.Tab(label='Node By Group', value='nodebygroup'),
+                                dcc.Tab(label='Node By Age', value='nodebyage'),
+                                dcc.Tab(label='Recordings By Group', value='recordingsbygroup'),
+                                dcc.Tab(label='Recordings By Age', value='recordingsbyage')
+                            ])
+                        ]),
+                        
+                        # Tab 2: Network Activity
+                        dcc.Tab(label='Network Activity', value='network', children=[
+                            # Subtabs for Network Activity
+                            dcc.Tabs(id='network-tabs', value='nodebygroup', children=[
+                                dcc.Tab(label='Node By Group', value='nodebygroup'),
+                                dcc.Tab(label='Node By Age', value='nodebyage'),
+                                dcc.Tab(label='Recordings By Group', value='recordingsbygroup'),
+                                dcc.Tab(label='Recordings By Age', value='recordingsbyage'),
+                                dcc.Tab(label='Graph Metrics By Lag', value='graphmetricsbylag'),
+                                dcc.Tab(label='Node Cartography', value='nodecartography')
+                            ])
+                        ])
+                    ], className='tab-container')
+                ], className='filter-container'),
+                
+                # Filters and visualization container
+                html.Div([
+                    # Left column - filters
+                    html.Div([
+                        html.H3('Filters', style={'marginTop': '0', 'marginBottom': '15px'}),
+                        
+                        # Group selection
+                        html.Div([
+                            html.Label('Groups:', style={'fontWeight': 'bold'}),
+                            dcc.Dropdown(
+                                id='group-dropdown',
+                                options=[],  # Will be populated after data loading
+                                value=[],
+                                multi=True,
+                                placeholder="Load data first..."
+                            )
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # DIV selection
+                        html.Div([
+                            html.Label('DIVs:', style={'fontWeight': 'bold'}),
+                            dcc.Dropdown(
+                                id='div-dropdown',
+                                options=[],  # Will be populated after data loading
+                                value=[],
+                                multi=True,
+                                placeholder="Load data first..."
+                            )
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # Metric selection
+                        html.Div([
+                            html.Label('Metric:', style={'fontWeight': 'bold'}),
+                            dcc.Dropdown(
+                                id='metric-dropdown',
+                                options=[],
+                                value=None,
+                                placeholder="Select analysis type first..."
+                            )
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # Lag selection (conditionally displayed)
+                        html.Div([
+                            html.Label('Lag (ms):', style={'fontWeight': 'bold'}),
+                            dcc.Dropdown(
+                                id='lag-dropdown',
+                                options=[],  # Will be populated after data loading
+                                value=None,
+                                placeholder="Load data first..."
+                            )
+                        ], id='lag-dropdown-container', style={'marginBottom': '15px', 'display': 'none'}),
+                        
+                        # Visualization type
+                        html.Div([
+                            html.Label('Visualization:', style={'fontWeight': 'bold'}),
+                            dcc.RadioItems(
+                                id='viz-type',
+                                options=[
+                                    {'label': 'Half Violin Plot', 'value': 'violin'},
+                                    {'label': 'Box Plot', 'value': 'box'},
+                                    {'label': 'Bar Chart', 'value': 'bar'}
+                                ],
+                                value='violin',
+                                labelStyle={'display': 'block', 'marginBottom': '5px'}
+                            )
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # Data info panel (shows after data is loaded)
+                        html.Div(
+                            id='data-info-panel',
+                            style={'display': 'none'}
+                        )
+                    ], className='filter-sidebar'),
+                    
+                    # Right column - visualization
+                    html.Div([
+                        html.Div([
+                            dcc.Graph(
+                                id='visualization-graph',
+                                style={'height': '100%', 'width': '100%'},
+                                config={'displayModeBar': True, 'responsive': True},
+                                figure={
+                                    'data': [],
+                                    'layout': {
+                                        'title': 'Load data and select analysis options to generate visualization',
+                                        'plot_bgcolor': 'white',
+                                        'paper_bgcolor': 'white',
+                                        'height': 600,
+                                        'font': {'size': 14}
+                                    }
+                                }
+                            )
+                        ], className='graph-wrapper')
+                    ], className='visualization-container main-content')
+                ], className='flex-container')
             ]),
-            color="dark",
-            dark=True,
-            className="mb-4",
-        ),
-        
-        # Main content
-        dbc.Container([
-            # Tabs for different visualization types
-            dbc.Tabs([
-                # 2B_GroupComparisons tabs
-                
-                # Node by Group tab (2B_1)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Neuronal Activity: Electrode-Level Metrics by Group", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics
-                                    html.P("Select Metric:"),
-                                    dcc.Dropdown(
-                                        id="neuronal-node-group-metric",
-                                        options=[
-                                            {"label": "Firing Rate (Hz)", "value": "FR"},
-                                            {"label": "Burst Rate (per minute)", "value": "channelBurstRate"},
-                                            {"label": "Burst Duration (ms)", "value": "channelBurstDur"},
-                                            {"label": "ISI Within Burst (ms)", "value": "channelISIwithinBurst"},
-                                            {"label": "ISI Outside Burst (ms)", "value": "channeISIoutsideBurst"},
-                                            {"label": "Fraction Spikes in Bursts", "value": "channelFracSpikesInBursts"}
-                                        ],
-                                        value="FR"
-                                    ),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="neuronal-node-group-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Neuronal: Node by Group"),
-                
-                # Node by Age tab (2B_2)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Neuronal Activity: Electrode-Level Metrics by Age", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics
-                                    html.P("Select Metric:"),
-                                    dcc.Dropdown(
-                                        id="neuronal-node-age-metric",
-                                        options=[
-                                            {"label": "Firing Rate (Hz)", "value": "FR"},
-                                            {"label": "Burst Rate (per minute)", "value": "channelBurstRate"},
-                                            {"label": "Burst Duration (ms)", "value": "channelBurstDur"},
-                                            {"label": "ISI Within Burst (ms)", "value": "channelISIwithinBurst"},
-                                            {"label": "ISI Outside Burst (ms)", "value": "channeISIoutsideBurst"},
-                                            {"label": "Fraction Spikes in Bursts", "value": "channelFracSpikesInBursts"}
-                                        ],
-                                        value="FR"
-                                    ),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="neuronal-node-age-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Neuronal: Node by Age"),
-                
-                # Recording by Group tab (2B_3)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Neuronal Activity: Recording-Level Metrics by Group", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics
-                                    html.P("Select Metric:"),
-                                    dcc.Dropdown(
-                                        id="neuronal-recording-group-metric",
-                                        options=[
-                                            {"label": "Number of Active Electrodes", "value": "numActiveElec"},
-                                            {"label": "Mean Firing Rate (Hz)", "value": "FRmean"},
-                                            {"label": "Network Burst Rate (per minute)", "value": "NBurstRate"},
-                                            {"label": "Mean Network Burst Length (s)", "value": "meanNBstLengthS"},
-                                            {"label": "Mean ISI Within Network Burst (ms)", "value": "meanISIWithinNbursts_ms"},
-                                            {"label": "Mean ISI Outside Network Burst (ms)", "value": "meanISIoutsideNbursts_ms"}
-                                        ],
-                                        value="FRmean"
-                                    ),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="neuronal-recording-group-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Neuronal: Recording by Group"),
-                
-                # Recording by Age tab (2B_4)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Neuronal Activity: Recording-Level Metrics by Age", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics
-                                    html.P("Select Metric:"),
-                                    dcc.Dropdown(
-                                        id="neuronal-recording-age-metric",
-                                        options=[
-                                            {"label": "Number of Active Electrodes", "value": "numActiveElec"},
-                                            {"label": "Mean Firing Rate (Hz)", "value": "FRmean"},
-                                            {"label": "Network Burst Rate (per minute)", "value": "NBurstRate"},
-                                            {"label": "Mean Network Burst Length (s)", "value": "meanNBstLengthS"},
-                                            {"label": "Mean ISI Within Network Burst (ms)", "value": "meanISIWithinNbursts_ms"},
-                                            {"label": "Mean ISI Outside Network Burst (ms)", "value": "meanISIoutsideNbursts_ms"}
-                                        ],
-                                        value="FRmean"
-                                    ),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="neuronal-recording-age-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Neuronal: Recording by Age"),
-                
-                # 4B_GroupComparisons tabs
-                
-                # Node by Group tab (4B_1)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Node-Level Metrics by Group", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics and lag
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Metric:"),
-                                            dcc.Dropdown(
-                                                id="network-node-group-metric",
-                                                options=[
-                                                    {"label": "Degree", "value": "degree"},
-                                                    {"label": "Strength", "value": "strength"},
-                                                    {"label": "Clustering", "value": "clustering"},
-                                                    {"label": "Betweenness Centrality", "value": "betweenness"},
-                                                    {"label": "Local Efficiency", "value": "efficiency_local"},
-                                                    {"label": "Participation Coefficient", "value": "participation"}
-                                                ],
-                                                value="degree"
-                                            )
-                                        ], width=8),
-                                        dbc.Col([
-                                            html.P("Select Lag:"),
-                                            dcc.Dropdown(
-                                                id="network-node-group-lag",
-                                                options=[{"label": f"{lag} ms", "value": lag} for lag in lags],
-                                                value=lags[0] if lags else None
-                                            )
-                                        ], width=4)
-                                    ]),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="network-node-group-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Network: Node by Group"),
-                
-                # Node by Age tab (4B_2)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Node-Level Metrics by Age", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics and lag
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Metric:"),
-                                            dcc.Dropdown(
-                                                id="network-node-age-metric",
-                                                options=[
-                                                    {"label": "Degree", "value": "degree"},
-                                                    {"label": "Strength", "value": "strength"},
-                                                    {"label": "Clustering", "value": "clustering"},
-                                                    {"label": "Betweenness Centrality", "value": "betweenness"},
-                                                    {"label": "Local Efficiency", "value": "efficiency_local"},
-                                                    {"label": "Participation Coefficient", "value": "participation"}
-                                                ],
-                                                value="degree"
-                                            )
-                                        ], width=8),
-                                        dbc.Col([
-                                            html.P("Select Lag:"),
-                                            dcc.Dropdown(
-                                                id="network-node-age-lag",
-                                                options=[{"label": f"{lag} ms", "value": lag} for lag in lags],
-                                                value=lags[0] if lags else None
-                                            )
-                                        ], width=4)
-                                    ]),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="network-node-age-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Network: Node by Age"),
-                
-                # Network by Group tab (4B_3)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Network-Level Metrics by Group", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics and lag
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Metric:"),
-                                            dcc.Dropdown(
-                                                id="network-recording-group-metric",
-                                                options=[
-                                                    {"label": "Density", "value": "density"},
-                                                    {"label": "Global Efficiency", "value": "efficiency_global"},
-                                                    {"label": "Modularity", "value": "modularity"},
-                                                    {"label": "Small-worldness", "value": "smallworldness"}
-                                                ],
-                                                value="density"
-                                            )
-                                        ], width=8),
-                                        dbc.Col([
-                                            html.P("Select Lag:"),
-                                            dcc.Dropdown(
-                                                id="network-recording-group-lag",
-                                                options=[{"label": f"{lag} ms", "value": lag} for lag in lags],
-                                                value=lags[0] if lags else None
-                                            )
-                                        ], width=4)
-                                    ]),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="network-recording-group-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Network: Recording by Group"),
-                
-                # Network by Age tab (4B_4)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Network-Level Metrics by Age", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting metrics and lag
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Metric:"),
-                                            dcc.Dropdown(
-                                                id="network-recording-age-metric",
-                                                options=[
-                                                    {"label": "Density", "value": "density"},
-                                                    {"label": "Global Efficiency", "value": "efficiency_global"},
-                                                    {"label": "Modularity", "value": "modularity"},
-                                                    {"label": "Small-worldness", "value": "smallworldness"}
-                                                ],
-                                                value="density"
-                                            )
-                                        ], width=8),
-                                        dbc.Col([
-                                            html.P("Select Lag:"),
-                                            dcc.Dropdown(
-                                                id="network-recording-age-lag",
-                                                options=[{"label": f"{lag} ms", "value": lag} for lag in lags],
-                                                value=lags[0] if lags else None
-                                            )
-                                        ], width=4)
-                                    ]),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="network-recording-age-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Network: Recording by Age"),
-                
-                # Metrics by Lag tab (4B_5)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Metrics by Lag", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting groups and metrics
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Group:"),
-                                            dcc.Dropdown(
-                                                id="network-lag-group",
-                                                options=[{"label": g, "value": g} for g in groups],
-                                                value=groups[0] if groups else None
-                                            )
-                                        ], width=4),
-                                        dbc.Col([
-                                            html.P("Select Metric:"),
-                                            dcc.Dropdown(
-                                                id="network-lag-metric",
-                                                options=[
-                                                    {"label": "Density", "value": "density"},
-                                                    {"label": "Global Efficiency", "value": "efficiency_global"},
-                                                    {"label": "Modularity", "value": "modularity"},
-                                                    {"label": "Small-worldness", "value": "smallworldness"}
-                                                ],
-                                                value="density"
-                                            )
-                                        ], width=8)
-                                    ]),
-                                    
-                                    # Visualizations
-                                    dcc.Graph(id="network-lag-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Network: Metrics by Lag"),
-                
-                # Node Cartography tab (4B_6)
-                dbc.Tab([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H4("Network Activity: Node Cartography", className="mt-3"),
-                            dbc.Card([
-                                dbc.CardBody([
-                                    # Controls for selecting groups, ages, and lags
-                                    dbc.Row([
-                                        dbc.Col([
-                                            html.P("Select Group:"),
-                                            dcc.Dropdown(
-                                                id="cartography-group",
-                                                options=[{"label": g, "value": g} for g in groups],
-                                                value=groups[0] if groups else None
-                                            )
-                                        ], width=4),
-                                        dbc.Col([
-                                            html.P("Select Lag:"),
-                                            dcc.Dropdown(
-                                                id="cartography-lag",
-                                                options=[{"label": f"{lag} ms", "value": lag} for lag in lags],
-                                                value=lags[0] if lags else None
-                                            )
-                                        ], width=4)
-                                    ]),
-                                    
-                                    # Node cartography role proportions
-                                    html.H5("Node Role Proportions by Age", className="mt-3"),
-                                    dcc.Graph(id="cartography-proportions-plot", style={"height": "400px"}),
-                                    
-                                    # Node cartography scatter plot
-                                    html.H5("Node Cartography Scatter Plot", className="mt-3"),
-                                    dcc.Dropdown(
-                                        id="cartography-div",
-                                        options=[{"label": f"DIV {div}", "value": div} for div in divs],
-                                        value=divs[0] if divs else None,
-                                        className="mb-2"
-                                    ),
-                                    dcc.Graph(id="cartography-scatter-plot", style={"height": "600px"})
-                                ])
-                            ])
-                        ], width=12)
-                    ])
-                ], label="Node Cartography")
-                
-            ], id="main-tabs"),
-        ], fluid=True),
-        
-        # Footer
-        html.Footer([
-            html.P("MEA-NAP Dashboard - Built to visualize 2B_GroupComparisons and 4B_GroupComparisons data"),
-            html.P("© 2023")
-        ], className="footer mt-5 py-3 bg-light text-center")
+            
+            # Hidden stores for state management
+            dcc.Store(id='data-loaded-store', data=False),
+            dcc.Store(id='current-comparison-store'),
+            dcc.Store(id='data-store')
+        ], className='dashboard-container')
     ])
+
+
+def create_data_info_panel(groups, divs, lags, experiments_count):
+    """
+    Create an informational panel showing loaded data statistics
+    
+    Parameters:
+    -----------
+    groups : list
+        List of groups
+    divs : list
+        List of DIVs
+    lags : list
+        List of lag values
+    experiments_count : int
+        Total number of experiments
+        
+    Returns:
+    --------
+    html.Div
+        Data info panel
+    """
+    return html.Div([
+        html.H4('Loaded Data Summary', style={'marginTop': '20px', 'marginBottom': '10px'}),
+        html.Ul([
+            html.Li(f"Groups: {len(groups)} ({', '.join(groups)})"),
+            html.Li(f"DIVs: {len(divs)} ({', '.join(map(str, divs))})"),
+            html.Li(f"Lag values: {len(lags)} ({', '.join(map(str, lags))} ms)"),
+            html.Li(f"Total experiments: {experiments_count}")
+        ], style={
+            'fontSize': '12px',
+            'color': '#666',
+            'paddingLeft': '15px'
+        })
+    ], style={
+        'backgroundColor': '#f8f9fa',
+        'padding': '15px',
+        'borderRadius': '8px',
+        'border': '1px solid #dee2e6',
+        'marginTop': '20px'
+    })
+
+
+def get_default_example_paths():
+    """
+    Get list of common example paths for the data directory input
+    
+    Returns:
+    --------
+    list
+        List of example paths
+    """
+    return [
+        "/path/to/GraphData",
+        "/Volumes/GDrive/MEA_work/combined_data/output/div5053rec2/GraphData",
+        "C:\\Data\\MEA\\GraphData",
+        "~/Documents/MEA_Data/GraphData"
+    ]
