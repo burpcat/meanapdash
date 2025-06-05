@@ -252,29 +252,40 @@ def update_metric_options(current_selection):
     if not activity or not comparison:
         return [], None, {'display': 'none'}
     
-    # Get metrics based on activity and comparison (Dashboard 2's metric definitions)
+    # Get metrics based on activity and comparison (matching your file structure)
     if activity == 'neuronal':
         if comparison in ['nodebygroup', 'nodebyage']:
-            # Electrode-level neuronal metrics (Dashboard 2 field names)
+            # Electrode-level neuronal metrics (matching 1_NodeByGroup & 2_NodeByAge)
             metrics = [
-                {'label': 'Firing Rate (Hz)', 'value': 'FR'},
-                {'label': 'Burst Rate (per minute)', 'value': 'channelBurstRate'},
-                {'label': 'Burst Duration (ms)', 'value': 'channelBurstDur'},
-                {'label': 'ISI Within Burst (ms)', 'value': 'channelISIwithinBurst'},
-                {'label': 'ISI Outside Burst (ms)', 'value': 'channeISIoutsideBurst'},
-                {'label': 'Fraction Spikes in Bursts', 'value': 'channelFracSpikesInBursts'}
+                {'label': 'Mean Firing Rate Node', 'value': 'FR'},
+                {'label': 'Mean Firing Rate Active Node', 'value': 'FR'},  # Note: same backend field
+                {'label': 'Unit Burst Rate (per minute)', 'value': 'channelBurstRate'},
+                {'label': 'Unit Within-Burst Firing Rate (Hz)', 'value': 'channelBurstRate'},  # Related metric
+                {'label': 'Unit Burst Duration (ms)', 'value': 'channelBurstDur'},
+                {'label': 'Unit ISI Within Burst (ms)', 'value': 'channelISIwithinBurst'},
+                {'label': 'Unit ISI Outside Burst (ms)', 'value': 'channeISIoutsideBurst'},
+                {'label': 'Unit Fraction of Spikes in Bursts', 'value': 'channelFracSpikesInBursts'}
             ]
             default_metric = 'FR'
             show_lag = False
         else:  # recordingsbygroup, recordingsbyage
-            # Recording-level neuronal metrics (Dashboard 2 field names)
+            # Recording-level neuronal metrics (matching 3_RecordingsByGroup)
             metrics = [
                 {'label': 'Number of Active Electrodes', 'value': 'numActiveElec'},
                 {'label': 'Mean Firing Rate (Hz)', 'value': 'FRmean'},
+                {'label': 'Median Firing Rate (Hz)', 'value': 'FRmedian'},
                 {'label': 'Network Burst Rate (per minute)', 'value': 'NBurstRate'},
+                {'label': 'Mean Number of Channels Involved in Network Bursts', 'value': 'meanNumChansInvolvedInNbursts'},
                 {'label': 'Mean Network Burst Length (s)', 'value': 'meanNBstLengthS'},
                 {'label': 'Mean ISI Within Network Burst (ms)', 'value': 'meanISIWithinNbursts_ms'},
-                {'label': 'Mean ISI Outside Network Burst (ms)', 'value': 'meanISIoutsideNbursts_ms'}
+                {'label': 'Mean ISI Outside Network Bursts (ms)', 'value': 'meanISIoutsideNbursts_ms'},
+                {'label': 'Coefficient of Variation of Inter Network Burst Intervals', 'value': 'CVofINBI'},
+                {'label': 'Fraction of Bursts in Network Bursts', 'value': 'fracInNburst'},
+                {'label': 'Single-Electrode Burst Rate (per minute)', 'value': 'channelBurstRate'},
+                {'label': 'Single-Electrode Average Burst Duration (ms)', 'value': 'channelBurstDur'},
+                {'label': 'Single-Electrode Average ISI Within Burst (ms)', 'value': 'channelISIwithinBurst'},
+                {'label': 'Single-Electrode Average ISI Outside Burst (ms)', 'value': 'channeISIoutsideBurst'},
+                {'label': 'Mean Fraction of Spikes in Bursts per Electrode', 'value': 'channelFracSpikesInBursts'}
             ]
             default_metric = 'FRmean'
             show_lag = False
