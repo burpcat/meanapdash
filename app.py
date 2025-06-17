@@ -1,4 +1,6 @@
 import os
+import base64
+from datetime import datetime
 import dash
 from dash import dcc, html, Input, Output, State
 import plotly.graph_objects as go
@@ -427,6 +429,180 @@ def update_visualization(groups, selected_divs, metric, viz_type, lag, current_s
         import traceback
         traceback.print_exc()
         return go.Figure().update_layout(title=f'Error: {str(e)}')
+    
+# Add these imports at the top of app.py
+import base64
+from datetime import datetime
+
+# Add this callback after your existing callbacks in app.py
+@app.callback(
+    [Output("download-visualization", "data"), 
+     Output("export-status", "children")],
+    [Input("export-svg-btn", "n_clicks"),
+     Input("export-png-btn", "n_clicks"),
+     Input("export-pdf-btn", "n_clicks")],
+    [State('visualization-graph', 'figure'),
+     State('group-dropdown', 'value'),
+     State('div-dropdown', 'value'),
+     State('metric-dropdown', 'value'),
+     State('lag-dropdown', 'value'),
+     State('current-comparison-store', 'data'),
+     State('export-filename-input', 'value')],
+    prevent_initial_call=True
+)
+def export_visualization(svg_clicks, png_clicks, pdf_clicks, figure, 
+                        groups, selected_divs, metric, lag, current_selection, 
+                        custom_filename):
+    """Export the current visualization in the selected format"""
+    
+    # Determine which button was clicked
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return None, ""
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Check if we have a figure to export
+    if not figure or not figure.get('data'):
+        return None, "No visualization to export. Please generate a plot first."
+    
+    # Determine export format
+    if button_id == "export-svg-btn":
+        export_format = "svg"
+        mime_type = "image/svg+xml"
+    elif button_id == "export-png-btn":
+        export_format = "png"
+        mime_type = "image/png"
+    elif button_id == "export-pdf-btn":
+        export_format = "pdf"
+        mime_type = "application/pdf"
+    else:
+        return None, "Unknown export format"
+    
+    try:
+        # Create plotly figure object
+        fig = go.Figure(figure)
+        
+        # Optimize figure for export
+        fig.update_layout(
+            # Ensure good resolution and clean appearance
+            font=dict(family="Arial, sans-serif", size=12),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            # Add some padding for better appearance
+            margin=dict(l=60, r=60, t=80, b=60)
+        )
+        
+        # Generate descriptive filename if none provided
+        if not custom_filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Build filename based on current selections
+            filename_parts = ["MEA-NAP"]
+            
+            # Add activity type and comparison
+            if current_selection:
+                activity = current_selection.get('activity')
+                comparison = current_selection.get('comparison')
+                if activity:
+                    filename_parts.append(activity)
+                if comparison:
+                    filename_parts.append(comparison)
+            
+            # Add groups
+            if groups:
+                if len(groups) == 1:
+                    filename_parts.append(f"group-{groups[0]}")
+                else:
+                    filename_parts.append(f"{len(groups)}-groups")
+            
+            # Add DIVs
+            if selected_divs:
+                if len(selected_divs) == 1:
+                    filename_parts.append(f"DIV{selected_divs[0]}")
+                else:
+                    filename_parts.append(f"{len(selected_divs)}-DIVs")
+            
+            # Add metric
+            if metric:
+                filename_parts.append(metric)
+            
+            # Add lag if applicable
+            if lag and current_selection and current_selection.get('activity') == 'network':
+                filename_parts.append(f"lag{lag}ms")
+            
+            # Add timestamp
+            filename_parts.append(timestamp)
+            
+            filename = "_".join(filename_parts)
+        else:
+            filename = custom_filename
+        
+        # Add file extension
+        filename = f"{filename}.{export_format}"
+        
+        # Export the figure
+        if export_format == "svg":
+            # Export as SVG
+            svg_bytes = fig.to_image(format="svg", width=800, height=600, scale=1)
+            return (
+                dict(
+                    content=svg_bytes.decode('utf-8'), 
+                    filename=filename, 
+                    type=mime_type
+                ),
+                f"✓ SVG exported successfully as {filename}"
+            )
+            
+        elif export_format == "png":
+            # Export as PNG with high quality
+            png_bytes = fig.to_image(format="png", width=800, height=600, scale=2)
+            png_b64 = base64.b64encode(png_bytes).decode()
+            return (
+                dict(
+                    content=png_b64, 
+                    filename=filename, 
+                    base64=True
+                ),
+                f"✓ PNG exported successfully as {filename}"
+            )
+            
+        elif export_format == "pdf":
+            # Export as PDF
+            pdf_bytes = fig.to_image(format="pdf", width=800, height=600)
+            pdf_b64 = base64.b64encode(pdf_bytes).decode()
+            return (
+                dict(
+                    content=pdf_b64, 
+                    filename=filename, 
+                    base64=True
+                ),
+                f"✓ PDF exported successfully as {filename}"
+            )
+    
+    except Exception as e:
+        error_msg = f"Export failed: {str(e)}"
+        print(f"Export error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, error_msg
+    
+    return None, ""
+
+
+# Optional: Add a callback to clear export status after a delay
+@app.callback(
+    Output("export-status", "children", allow_duplicate=True),
+    [Input("export-status", "children")],
+    prevent_initial_call=True
+)
+def clear_export_status(status_message):
+    """Clear export status message after a few seconds"""
+    if status_message and "✓" in status_message:
+        # Use a clientside callback or JavaScript to clear after delay
+        # For now, just return the message (it will stay visible)
+        return status_message
+    return status_message
 
 # Run the app
 if __name__ == '__main__':

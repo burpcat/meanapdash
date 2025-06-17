@@ -444,3 +444,64 @@ label {
 .filter-sidebar > div:last-child {
     margin-bottom: 0;
 }
+
+/* Add to your CSS file in assets folder */
+
+/* Export controls styling */
+.btn {
+    padding: 8px 16px;
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+    background-color: transparent;
+}
+
+.btn-outline-primary:hover {
+    color: white;
+    background-color: #007bff;
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+    color: white;
+    background-color: #6c757d;
+}
+
+.btn-outline-success {
+    color: #28a745;
+    border-color: #28a745;
+    background-color: transparent;
+}
+
+.btn-outline-success:hover {
+    color: white;
+    background-color: #28a745;
+}
+
+/* Export status styling */
+#export-status {
+    font-weight: 500;
+}
+
+#export-status:has-text("✓") {
+    color: #28a745;
+}
+
+#export-status:has-text("failed") {
+    color: #dc3545;
+}

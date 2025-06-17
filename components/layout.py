@@ -178,35 +178,89 @@ def create_layout(app):
                         )
                     ], className='filter-sidebar'),
                     
-                    # Right column - visualization
-                    html.Div([
-                        html.Div([
-                            dcc.Graph(
-                                id='visualization-graph',
-                                style={'height': '100%', 'width': '100%'},
-                                config={'displayModeBar': True, 'responsive': True},
-                                figure={
-                                    'data': [],
-                                    'layout': {
-                                        'title': 'Load data and select analysis options to generate visualization',
-                                        'plot_bgcolor': 'white',
-                                        'paper_bgcolor': 'white',
-                                        'height': 600,
-                                        'font': {'size': 14}
-                                    }
-                                }
-                            )
-                        ], className='graph-wrapper')
-                    ], className='visualization-container main-content')
-                ], className='flex-container')
-            ]),
-            
-            # Hidden stores for state management
-            dcc.Store(id='data-loaded-store', data=False),
-            dcc.Store(id='current-comparison-store'),
-            dcc.Store(id='data-store')
-        ], className='dashboard-container')
-    ])
+# Right column - visualization
+html.Div([
+    html.Div([
+        dcc.Graph(
+            id='visualization-graph',
+            config={
+                'displayModeBar': True,
+                'displaylogo': False,
+                'modeBarButtonsToRemove': ['pan2d', 'lasso2d'],
+                'toImageButtonOptions': {
+                    'format': 'svg',
+                    'filename': 'MEA_visualizations',
+                    'height': 600,
+                    'width': 800,
+                    'scale': 1
+                },
+                'modeBarButtonsToAdd': [
+                    'downloadSvg',  # Add SVG download button
+                ]
+            },
+            style={'height': '600px'}
+        )
+    ], className='graph-wrapper'),
+    
+    # Export controls section
+    html.Div([
+        html.H5("Export Visualization", style={'marginBottom': '10px'}),
+        html.Div([
+            html.Button(
+                "Export SVG", 
+                id="export-svg-btn",
+                className="btn btn-outline-primary",
+                style={'marginRight': '10px', 'marginBottom': '5px'}
+            ),
+            html.Button(
+                "Export PNG", 
+                id="export-png-btn",
+                className="btn btn-outline-secondary",
+                style={'marginRight': '10px', 'marginBottom': '5px'}
+            ),
+            html.Button(
+                "Export PDF", 
+                id="export-pdf-btn",
+                className="btn btn-outline-success",
+                style={'marginRight': '10px', 'marginBottom': '5px'}
+            ),
+        ], style={'display': 'flex', 'flexWrap': 'wrap'}),
+        
+        # Filename input
+        html.Div([
+            html.Label("Filename (optional):", style={'fontSize': '12px', 'marginRight': '10px'}),
+            dcc.Input(
+                id='export-filename-input',
+                type='text',
+                placeholder='Enter custom filename...',
+                style={'width': '200px', 'marginRight': '10px'}
+            ),
+        ], style={'marginTop': '10px', 'alignItems': 'center', 'display': 'flex'}),
+        
+        # Export status
+        html.Div(id="export-status", style={'marginTop': '10px', 'fontSize': '12px'}),
+        
+        # Download component
+        dcc.Download(id="download-visualization"),
+        
+    ], style={
+        'border': '1px solid #ddd',
+        'borderRadius': '5px',
+        'padding': '15px',
+        'marginTop': '20px',
+        'backgroundColor': '#f8f9fa'
+    }),
+    
+], className='visualization-container main-content')
+], className='flex-container')
+]),
+
+# Hidden stores for state management
+dcc.Store(id='data-loaded-store', data=False),
+dcc.Store(id='current-comparison-store'),
+dcc.Store(id='data-store')
+], className='dashboard-container')
+])
 
 
 def create_data_info_panel(groups, divs, lags, experiments_count):
