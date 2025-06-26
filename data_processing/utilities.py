@@ -187,83 +187,333 @@ def extract_matlab_struct_data(struct_data, field_name, default=None):
         
     return default
 
-# def compute_recording_level_metrics(electrode_level_data):
-#     """
-#     Compute recording-level metrics from electrode-level data
+def verify_all_metrics(compiled_data):
+    """
+    Comprehensive verification of all metrics in the loaded data
     
-#     Parameters:
-#     -----------
-#     electrode_level_data : dict
-#         Dictionary with electrode-level metrics
+    Parameters:
+    -----------
+    compiled_data : dict
+        The compiled data from load_neuronal_activity_data or load_network_metrics_data
         
-#     Returns:
-#     --------
-#     dict
-#         Dictionary with computed recording-level metrics
-#     """
-#     recording_metrics = {}
+    Returns:
+    --------
+    dict
+        Report of metric availability and issues
+    """
+    report = {
+        'neuronal_metrics': {
+            'electrode_level': {
+                'expected': ['FR', 'channelBurstRate', 'channelBurstDur', 
+                           'channelISIwithinBurst', 'channeISIoutsideBurst', 
+                           'channelFracSpikesInBursts'],
+                'found': [],
+                'missing': [],
+                'data_counts': {}
+            },
+            'recording_level': {
+                'expected': ['FRmean', 'FRmedian', 'numActiveElec', 'NBurstRate', 
+                           'meanNumChansInvolvedInNbursts', 'meanNBstLengthS',
+                           'meanISIWithinNbursts_ms', 'meanISIoutsideNbursts_ms',
+                           'CVofINBI', 'fracInNburst'],
+                'found': [],
+                'missing': [],
+                'data_counts': {}
+            }
+        },
+        'network_metrics': {
+            'node_level': {
+                'expected': ['ND', 'NS', 'MEW', 'Eloc', 'BC', 'PC', 'Z', 'aveControl', 'modalControl'],
+                'found': [],
+                'missing': [],
+                'data_counts': {}
+            },
+            'network_level': {
+                'expected': ['aN', 'Dens', 'NDmean', 'NDtop25', 'sigEdgesMean', 'sigEdgesTop10', 
+                           'NSmean', 'ElocMean', 'CC', 'nMod', 'Q', 'PL', 'PCmean', 'Eglob', 'SW', 'SWw'],
+                'found': [],
+                'missing': [],
+                'data_counts': {}
+            }
+        },
+        'data_structure_issues': [],
+        'recommendations': []
+    }
     
-#     # Compute mean firing rate
-#     if 'FR' in electrode_level_data and electrode_level_data['FR'] is not None:
-#         fr_data = safe_flatten_array(electrode_level_data['FR'])
-#         if len(fr_data) > 0:
-#             fr_data = np.array(fr_data)
-#             fr_data = fr_data[~np.isnan(fr_data)]  # Remove NaN values
-#             if len(fr_data) > 0:
-#                 recording_metrics['FRmean'] = float(np.mean(fr_data))
-#                 recording_metrics['FRmedian'] = float(np.median(fr_data))
+    print("=== COMPREHENSIVE METRIC VERIFICATION ===\n")
     
-#     # Compute number of active electrodes
-#     if 'FR' in electrode_level_data and electrode_level_data['FR'] is not None:
-#         fr_data = safe_flatten_array(electrode_level_data['FR'])
-#         if len(fr_data) > 0:
-#             fr_data = np.array(fr_data)
-#             # An electrode is considered active if FR > 0.1 Hz (this threshold can be adjusted)
-#             recording_metrics['numActiveElec'] = int(np.sum(fr_data > 0.1))
+    # Check neuronal metrics
+    if 'neuronal' in compiled_data or 'by_group' in compiled_data:
+        data_to_check = compiled_data.get('neuronal', compiled_data)
+        
+        print("1. NEURONAL METRICS VERIFICATION")
+        print("-" * 40)
+        
+        # Check electrode-level metrics
+        print("\nA. Electrode-Level Metrics:")
+        for metric in report['neuronal_metrics']['electrode_level']['expected']:
+            found_in_groups = 0
+            total_values = 0
+            
+            for group in data_to_check.get('groups', []):
+                if group in data_to_check.get('by_group', {}):
+                    if metric in data_to_check['by_group'][group]:
+                        found_in_groups += 1
+                        values = data_to_check['by_group'][group][metric]
+                        if isinstance(values, list):
+                            total_values += len(values)
+                        elif values is not None:
+                            total_values += 1
+            
+            if found_in_groups > 0:
+                report['neuronal_metrics']['electrode_level']['found'].append(metric)
+                report['neuronal_metrics']['electrode_level']['data_counts'][metric] = total_values
+                print(f"  ✓ {metric}: Found in {found_in_groups} groups, {total_values} total values")
+            else:
+                report['neuronal_metrics']['electrode_level']['missing'].append(metric)
+                print(f"  ✗ {metric}: NOT FOUND")
+        
+        # Check recording-level metrics
+        print("\nB. Recording-Level Metrics:")
+        for metric in report['neuronal_metrics']['recording_level']['expected']:
+            found_in_groups = 0
+            total_values = 0
+            
+            for group in data_to_check.get('groups', []):
+                if group in data_to_check.get('by_group', {}):
+                    if metric in data_to_check['by_group'][group]:
+                        found_in_groups += 1
+                        values = data_to_check['by_group'][group][metric]
+                        if isinstance(values, list):
+                            total_values += len(values)
+                        elif values is not None:
+                            total_values += 1
+            
+            if found_in_groups > 0:
+                report['neuronal_metrics']['recording_level']['found'].append(metric)
+                report['neuronal_metrics']['recording_level']['data_counts'][metric] = total_values
+                print(f"  ✓ {metric}: Found in {found_in_groups} groups, {total_values} total values")
+            else:
+                report['neuronal_metrics']['recording_level']['missing'].append(metric)
+                print(f"  ✗ {metric}: NOT FOUND")
+        
+        # Check for unexpected metrics
+        print("\nC. Additional Metrics Found:")
+        all_expected = (report['neuronal_metrics']['electrode_level']['expected'] + 
+                       report['neuronal_metrics']['recording_level']['expected'] + 
+                       ['exp_names', 'channels'])  # Known non-metric fields
+        
+        for group in data_to_check.get('groups', []):
+            if group in data_to_check.get('by_group', {}):
+                for field in data_to_check['by_group'][group].keys():
+                    if field not in all_expected:
+                        print(f"  ? {field}: Unexpected metric found in group {group}")
     
-#     # Compute burst rate metrics
-#     if 'channelBurstRate' in electrode_level_data and electrode_level_data['channelBurstRate'] is not None:
-#         burst_data = safe_flatten_array(electrode_level_data['channelBurstRate'])
-#         if len(burst_data) > 0:
-#             burst_data = np.array(burst_data)
-#             burst_data = burst_data[~np.isnan(burst_data)]  # Remove NaN values
-#             if len(burst_data) > 0:
-#                 recording_metrics['NBurstRate'] = float(np.mean(burst_data))
+    # Check network metrics
+    if 'network' in compiled_data:
+        data_to_check = compiled_data['network']
+        
+        print("\n\n2. NETWORK METRICS VERIFICATION")
+        print("-" * 40)
+        
+        # Check node-level metrics
+        print("\nA. Node-Level Network Metrics:")
+        for lag in data_to_check.get('lags', []):
+            print(f"\n  Lag {lag} ms:")
+            for metric in report['network_metrics']['node_level']['expected']:
+                found_in_groups = 0
+                total_values = 0
+                
+                for group in data_to_check.get('groups', []):
+                    if (group in data_to_check.get('by_group', {}) and 
+                        lag in data_to_check['by_group'][group] and
+                        'node_metrics' in data_to_check['by_group'][group][lag]):
+                        
+                        if metric in data_to_check['by_group'][group][lag]['node_metrics']:
+                            found_in_groups += 1
+                            values = data_to_check['by_group'][group][lag]['node_metrics'][metric]
+                            if isinstance(values, list):
+                                total_values += len(values)
+                            elif values is not None:
+                                total_values += 1
+                
+                if found_in_groups > 0:
+                    if metric not in report['network_metrics']['node_level']['found']:
+                        report['network_metrics']['node_level']['found'].append(metric)
+                    report['network_metrics']['node_level']['data_counts'][f"{metric}_lag{lag}"] = total_values
+                    print(f"    ✓ {metric}: Found in {found_in_groups} groups, {total_values} total values")
+                else:
+                    if metric not in report['network_metrics']['node_level']['missing']:
+                        report['network_metrics']['node_level']['missing'].append(metric)
+                    print(f"    ✗ {metric}: NOT FOUND")
+        
+        # Check network-level metrics
+        print("\nB. Network-Level Metrics:")
+        for lag in data_to_check.get('lags', []):
+            print(f"\n  Lag {lag} ms:")
+            for metric in report['network_metrics']['network_level']['expected']:
+                found_in_groups = 0
+                total_values = 0
+                
+                for group in data_to_check.get('groups', []):
+                    if (group in data_to_check.get('by_group', {}) and 
+                        lag in data_to_check['by_group'][group] and
+                        'network_metrics' in data_to_check['by_group'][group][lag]):
+                        
+                        if metric in data_to_check['by_group'][group][lag]['network_metrics']:
+                            found_in_groups += 1
+                            values = data_to_check['by_group'][group][lag]['network_metrics'][metric]
+                            if isinstance(values, list):
+                                total_values += len(values)
+                            elif values is not None:
+                                total_values += 1
+                
+                if found_in_groups > 0:
+                    if metric not in report['network_metrics']['network_level']['found']:
+                        report['network_metrics']['network_level']['found'].append(metric)
+                    report['network_metrics']['network_level']['data_counts'][f"{metric}_lag{lag}"] = total_values
+                    print(f"    ✓ {metric}: Found in {found_in_groups} groups, {total_values} total values")
+                else:
+                    if metric not in report['network_metrics']['network_level']['missing']:
+                        report['network_metrics']['network_level']['missing'].append(metric)
+                    print(f"    ✗ {metric}: NOT FOUND")
     
-#     # Compute network burst metrics if we have burst durations
-#     if 'channelBurstDur' in electrode_level_data and electrode_level_data['channelBurstDur'] is not None:
-#         burst_dur_data = safe_flatten_array(electrode_level_data['channelBurstDur'])
-#         if len(burst_dur_data) > 0:
-#             burst_dur_data = np.array(burst_dur_data)
-#             burst_dur_data = burst_dur_data[~np.isnan(burst_dur_data)]  # Remove NaN values
-#             if len(burst_dur_data) > 0:
-#                 recording_metrics['meanNBstLengthS'] = float(np.mean(burst_dur_data)) / 1000.0  # Convert ms to s
+    # Generate recommendations
+    print("\n\n3. RECOMMENDATIONS")
+    print("-" * 20)
     
-#     # Compute ISI within bursts
-#     if 'channelISIwithinBurst' in electrode_level_data and electrode_level_data['channelISIwithinBurst'] is not None:
-#         isi_within_data = safe_flatten_array(electrode_level_data['channelISIwithinBurst'])
-#         if len(isi_within_data) > 0:
-#             isi_within_data = np.array(isi_within_data)
-#             isi_within_data = isi_within_data[~np.isnan(isi_within_data)]  # Remove NaN values
-#             if len(isi_within_data) > 0:
-#                 recording_metrics['meanISIWithinNbursts_ms'] = float(np.mean(isi_within_data))
+    # Missing neuronal metrics
+    if report['neuronal_metrics']['electrode_level']['missing']:
+        print(f"\n⚠️  Missing electrode-level metrics: {report['neuronal_metrics']['electrode_level']['missing']}")
+        report['recommendations'].append("Check electrode-level data loading in load_neuronal_activity_data()")
     
-#     # Compute ISI outside bursts
-#     if 'channeISIoutsideBurst' in electrode_level_data and electrode_level_data['channeISIoutsideBurst'] is not None:
-#         isi_outside_data = safe_flatten_array(electrode_level_data['channeISIoutsideBurst'])
-#         if len(isi_outside_data) > 0:
-#             isi_outside_data = np.array(isi_outside_data)
-#             isi_outside_data = isi_outside_data[~np.isnan(isi_outside_data)]  # Remove NaN values
-#             if len(isi_outside_data) > 0:
-#                 recording_metrics['meanISIoutsideNbursts_ms'] = float(np.mean(isi_outside_data))
+    if report['neuronal_metrics']['recording_level']['missing']:
+        print(f"⚠️  Missing recording-level metrics: {report['neuronal_metrics']['recording_level']['missing']}")
+        report['recommendations'].append("Check recording-level data loading - ensure both electrodeLevelActivity.mat and recordingLevelActivity.mat are being loaded")
     
-#     # Compute fraction of spikes in bursts
-#     if 'channelFracSpikesInBursts' in electrode_level_data and electrode_level_data['channelFracSpikesInBursts'] is not None:
-#         frac_data = safe_flatten_array(electrode_level_data['channelFracSpikesInBursts'])
-#         if len(frac_data) > 0:
-#             frac_data = np.array(frac_data)
-#             frac_data = frac_data[~np.isnan(frac_data)]  # Remove NaN values
-#             if len(frac_data) > 0:
-#                 recording_metrics['fracInNburst'] = float(np.mean(frac_data))
+    # Missing network metrics
+    if report['network_metrics']['node_level']['missing']:
+        print(f"⚠️  Missing node-level network metrics: {report['network_metrics']['node_level']['missing']}")
+        report['recommendations'].append("Check node metrics file loading in load_network_metrics_data()")
     
-#     return recording_metrics
+    if report['network_metrics']['network_level']['missing']:
+        print(f"⚠️  Missing network-level metrics: {report['network_metrics']['network_level']['missing']}")
+        report['recommendations'].append("Check network metrics file loading in load_network_metrics_data()")
+    
+    # Data structure issues
+    data_structure_issues = []
+    
+    # Check if data is properly organized
+    if 'neuronal' in compiled_data or 'by_group' in compiled_data:
+        data_to_check = compiled_data.get('neuronal', compiled_data)
+        if not data_to_check.get('groups'):
+            data_structure_issues.append("No groups found in neuronal data")
+        if not data_to_check.get('divs'):
+            data_structure_issues.append("No DIVs found in neuronal data")
+    
+    if 'network' in compiled_data:
+        if not compiled_data['network'].get('lags'):
+            data_structure_issues.append("No lags found in network data")
+    
+    if data_structure_issues:
+        print(f"\n🔧 Data structure issues: {data_structure_issues}")
+        report['data_structure_issues'] = data_structure_issues
+    
+    print(f"\n✅ Verification complete. Found {len(report['neuronal_metrics']['electrode_level']['found'])} electrode-level and {len(report['neuronal_metrics']['recording_level']['found'])} recording-level neuronal metrics.")
+    
+    return report
+
+def debug_specific_metric(compiled_data, metric_name, data_type='neuronal'):
+    """
+    Debug a specific metric that's not working
+    
+    Parameters:
+    -----------
+    compiled_data : dict
+        The compiled data
+    metric_name : str
+        Name of the metric to debug
+    data_type : str
+        'neuronal' or 'network'
+    """
+    print(f"\n=== DEBUGGING METRIC: {metric_name} ({data_type}) ===")
+    
+    if data_type == 'neuronal':
+        data_to_check = compiled_data.get('neuronal', compiled_data)
+        
+        print(f"\n1. Checking by_group structure:")
+        for group in data_to_check.get('groups', []):
+            if group in data_to_check.get('by_group', {}):
+                group_data = data_to_check['by_group'][group]
+                if metric_name in group_data:
+                    values = group_data[metric_name]
+                    print(f"  Group {group}: {type(values)} with {len(values) if isinstance(values, list) else 1} values")
+                    if isinstance(values, list) and len(values) > 0:
+                        print(f"    Sample values: {values[:3]}")
+                else:
+                    print(f"  Group {group}: {metric_name} NOT FOUND")
+                    print(f"    Available metrics: {list(group_data.keys())}")
+        
+        print(f"\n2. Checking by_experiment structure:")
+        experiment_count = 0
+        for exp_name, exp_data in data_to_check.get('by_experiment', {}).items():
+            if 'activity' in exp_data and metric_name in exp_data['activity']:
+                values = exp_data['activity'][metric_name]
+                experiment_count += 1
+                if experiment_count <= 3:  # Show first 3 experiments
+                    print(f"  Experiment {exp_name}: {type(values)} with value {values}")
+        
+        if experiment_count == 0:
+            print(f"  {metric_name} not found in any experiment")
+        else:
+            print(f"  {metric_name} found in {experiment_count} experiments")
+    
+    elif data_type == 'network':
+        data_to_check = compiled_data.get('network', {})
+        
+        print(f"\n1. Checking network structure for metric {metric_name}:")
+        for lag in data_to_check.get('lags', []):
+            print(f"\n  Lag {lag}:")
+            found_in_groups = 0
+            
+            for group in data_to_check.get('groups', []):
+                if (group in data_to_check.get('by_group', {}) and 
+                    lag in data_to_check['by_group'][group]):
+                    
+                    lag_data = data_to_check['by_group'][group][lag]
+                    
+                    # Check node metrics
+                    if 'node_metrics' in lag_data and metric_name in lag_data['node_metrics']:
+                        values = lag_data['node_metrics'][metric_name]
+                        found_in_groups += 1
+                        print(f"    Group {group} (node): {len(values) if isinstance(values, list) else 1} values")
+                    
+                    # Check network metrics
+                    if 'network_metrics' in lag_data and metric_name in lag_data['network_metrics']:
+                        values = lag_data['network_metrics'][metric_name]
+                        found_in_groups += 1
+                        print(f"    Group {group} (network): {len(values) if isinstance(values, list) else 1} values")
+            
+            if found_in_groups == 0:
+                print(f"    {metric_name} not found in any group for lag {lag}")
+    
+    print(f"\n=== END DEBUG FOR {metric_name} ===\n")
+
+# ADD THIS TO THE END OF load_neuronal_activity_data() in data_loader.py
+def run_verification_after_loading():
+    """
+    Add this call at the end of your data loading functions
+    """
+    print("\n" + "="*60)
+    print("RUNNING AUTOMATIC METRIC VERIFICATION")
+    print("="*60)
+    
+    # This would be called from your main app after loading data
+    # Example:
+    # report = verify_all_metrics(compiled_data)
+    # 
+    # # If specific metrics are missing, debug them:
+    # for missing_metric in report['neuronal_metrics']['recording_level']['missing']:
+    #     debug_specific_metric(compiled_data, missing_metric, 'neuronal')
+    
+    pass

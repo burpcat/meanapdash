@@ -1,4 +1,4 @@
-# callbacks/network_callbacks.py
+# callbacks/network_callbacks.py - FIXED VERSION
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 from data_processing.utilities import extract_div_value, safe_flatten_array
@@ -18,11 +18,11 @@ def register_network_callbacks(app):
         The Dash application instance
     """
     
-    # Modified callback for node-level network metrics by group
+    # FIXED: Callback for node-level network metrics by group (fixed indentation)
     @app.callback(
-    Output("network-node-group-plot", "figure"),
-    [Input("network-node-group-metric", "value"),
-    Input("network-node-group-lag", "value")]
+        Output("network-node-group-plot", "figure"),
+        [Input("network-node-group-metric", "value"),
+         Input("network-node-group-lag", "value")]
     )
     def update_network_node_group_plot(metric, lag):
         if not metric or not lag:

@@ -1,4 +1,4 @@
-# data_processing/data_loader.py - NETWORK METRICS SECTION FIXED
+# data_processing/data_loader.py - FIXED VERSION
 import os
 import numpy as np
 import glob
@@ -59,7 +59,7 @@ def scan_graph_data_folder(graph_data_folder):
         exp_folders = [f for f in os.listdir(group_path) 
                       if os.path.isdir(os.path.join(group_path, f))]
         
-        # FIX: This loop was properly indented - inside the group loop
+        # Process experiments within each group
         for exp in exp_folders:
             info['experiments'][group].append(exp)
             
@@ -108,7 +108,7 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
         'divs': sorted(set(div for group_divs in data_info['divs'].values() for div in group_divs.keys()))
     }
     
-    # Add recording level metrics fields - FIXED: renamed to avoid collision
+    # Add recording level metrics fields
     recording_metrics_list = [
         'FRmean', 'FRmedian', 'numActiveElec', 'NBurstRate', 
         'meanNumChansInvolvedInNbursts', 'meanNBstLengthS',
@@ -116,7 +116,7 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
         'CVofINBI', 'fracInNburst'
     ]
     
-    # Loop through groups and experiments
+    # Initialize group data structures
     for group in data_info['groups']:
         compiled_data['by_group'][group] = {
             'FR': [],               # Firing rates
@@ -133,32 +133,29 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
         for metric in recording_metrics_list:
             compiled_data['by_group'][group][metric] = []
     
-    # Initialize DIV data fields too
+    # Initialize DIV data fields
     for div in compiled_data['divs']:
-        if div not in compiled_data['by_div']:
-            compiled_data['by_div'][div] = {
-                'FR': [],
-                'channelBurstRate': [],
-                'channelBurstDur': [],
-                'channelISIwithinBurst': [],
-                'channeISIoutsideBurst': [],
-                'channelFracSpikesInBursts': [],
-                'exp_names': [],
-                'channels': [],
-                'groups': []
-            }
-            
-            # Add recording level metrics
-            for metric in recording_metrics_list:
-                compiled_data['by_div'][div][metric] = []
+        compiled_data['by_div'][div] = {
+            'FR': [],
+            'channelBurstRate': [],
+            'channelBurstDur': [],
+            'channelISIwithinBurst': [],
+            'channeISIoutsideBurst': [],
+            'channelFracSpikesInBursts': [],
+            'exp_names': [],
+            'channels': [],
+            'groups': []
+        }
+        
+        # Add recording level metrics
+        for metric in recording_metrics_list:
+            compiled_data['by_div'][div][metric] = []
     
     # Loop through groups and experiments
     files_loaded = 0
     files_with_errors = 0
     recording_files_found = 0
     recording_files_loaded = 0
-    
-    print("\nDEBUG: Looking for recordingSpikeActivity.mat and electrodeSpikeActivity.mat files")
     
     for group in data_info['groups']:
         for exp in data_info['experiments'][group]:
@@ -170,38 +167,24 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
             electrode_file_exists = os.path.exists(electrode_file)
             recording_file_exists = os.path.exists(recording_file)
             
-            print(f"\nExperiment: {exp} (Group: {group})")
-            print(f"  electrodeLevelActivity.mat exists: {electrode_file_exists}")
-            print(f"  recordingLevelActivity.mat exists: {recording_file_exists}")
-            
             # If recording file exists, load it first for recording-level metrics
             if recording_file_exists:
                 recording_files_found += 1
                 try:
-                    print(f"Loading recording file: {recording_file}")
                     recording_data = load_mat_file(recording_file)
                     recording_files_loaded += 1
-                    
-                    # Debug the structure
-                    print(f"  Keys in recording file: {list(recording_data.keys())}")
                     
                     # Process recording data
                     recording_metrics = {}
                     
-                    # FIXED: Try to get the recordingLevelData struct (not recordingData)
+                    # Try to get the recordingLevelData struct
                     recording_struct = extract_matlab_struct_data(recording_data, 'recordingLevelData', recording_data)
                     
                     # Extract recording-level metrics
-                    recording_level_metrics = recording_metrics_list.copy()  # Use the list we defined
-                    
-                    print("  Looking for recording-level metrics in recordingLevelData:")
-                    for metric in recording_level_metrics:
+                    for metric in recording_metrics_list:
                         value = extract_matlab_struct_data(recording_struct, metric, None)
                         if value is not None:
                             recording_metrics[metric] = value
-                            print(f"    Found {metric} = {value}")
-                        else:
-                            print(f"    Metric {metric} not found")
                     
                     # Store recording-level metrics in the experiment data
                     if recording_metrics:
@@ -231,7 +214,7 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                                 }
                                 
                                 # Add recording level metrics
-                                for metric in recording_level_metrics:
+                                for metric in recording_metrics_list:
                                     compiled_data['by_div'][div][metric] = []
                                 
                             for metric, value in recording_metrics.items():
@@ -241,28 +224,23 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                             compiled_data['by_div'][div]['groups'].append(group)
                     
                 except Exception as e:
-                    print(f"  Error loading {recording_file}: {e}")
+                    print(f"Error loading {recording_file}: {e}")
                     import traceback
                     traceback.print_exc()
             
             # Now load electrode-level metrics if the file exists
             if electrode_file_exists:
                 try:
-                    print(f"Loading file: {electrode_file}")
                     files_loaded += 1
                     
                     act_data = load_mat_file(electrode_file)
                     
-                    # Debug the structure
-                    print(f"Keys in loaded file: {list(act_data.keys())}")
-                    
                     # Special handling for mat_struct objects
-                    if 'electrodeLevelData' in act_data:  # FIXED: New variable name
+                    if 'electrodeLevelData' in act_data:
                         activity_struct = act_data['electrodeLevelData']
                         
-                        # Debug info: Check if it's a mat_struct
+                        # Check if it's a mat_struct
                         if hasattr(activity_struct, '_fieldnames'):
-                            print(f"electrodeLevelData is a mat_struct with fields: {activity_struct._fieldnames}")
                             # Create processed data from mat_struct fields
                             processed_data = {}
 
@@ -275,17 +253,13 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                                         found_fields.append(field)
                                         break
                             
-                            if found_fields:
-                                print(f"Potential recording-level metrics found: {found_fields}")
-                                # Try extracting these fields
-                                for field in found_fields:
-                                    try:
-                                        value = getattr(activity_struct, field)
-                                        print(f"  {field} = {value} (type: {type(value)})")
-                                        # Add it to processed_data if it's not already there
-                                        processed_data[field] = value
-                                    except Exception as e:
-                                        print(f"  Error extracting {field}: {e}")
+                            # Try extracting these fields
+                            for field in found_fields:
+                                try:
+                                    value = getattr(activity_struct, field)
+                                    processed_data[field] = value
+                                except Exception as e:
+                                    print(f"Error extracting {field}: {e}")
                             
                             # Access fields directly using getattr
                             # First process electrode-level metrics
@@ -294,13 +268,11 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                                          'channelFracSpikesInBursts', 'channels']:
                                 if hasattr(activity_struct, metric):
                                     processed_data[metric] = getattr(activity_struct, metric)
-                                    print(f"Extracted electrode-level metric: {metric}, type: {type(processed_data[metric])}")
                             
                             # Then process recording-level metrics
                             for metric in recording_metrics_list:
                                 if hasattr(activity_struct, metric):
                                     processed_data[metric] = getattr(activity_struct, metric)
-                                    print(f"Extracted recording-level metric: {metric} = {processed_data[metric]}")
                         else:
                             # Handle as a regular dictionary
                             processed_data = {}
@@ -313,12 +285,9 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                             # Extract recording-level metrics
                             for metric in recording_metrics_list:
                                 processed_data[metric] = extract_matlab_struct_data(activity_struct, metric, None)
-                                if processed_data[metric] is not None:
-                                    print(f"Found recording-level metric: {metric} = {processed_data[metric]}")
                     else:
                         # No electrodeLevelData found, try old activityData name for backward compatibility
                         if 'activityData' in act_data:
-                            print("  Using legacy activityData structure")
                             activity_struct = act_data['activityData']
                             processed_data = {}
                             # Handle legacy structure same way
@@ -347,7 +316,6 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                     div_parts = [part for part in exp.split('_') if 'DIV' in part]
                     if div_parts:
                         div = extract_div_value(div_parts[0])
-                        print(f"Extracted DIV: {div} from {div_parts[0]}")
                         
                         # Initialize DIV data if needed
                         if div not in compiled_data['by_div']:
@@ -389,7 +357,10 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                                   'channelISIwithinBurst', 'channeISIoutsideBurst', 
                                   'channelFracSpikesInBursts']:
                         if metric in processed_data and processed_data[metric] is not None:
-                            compiled_data['by_group'][group][metric].extend(safe_flatten_array(processed_data[metric]))
+                            # Take MEAN per experiment, not all individual values
+                            exp_mean = np.mean(safe_flatten_array(processed_data[metric]))
+                            if not np.isnan(exp_mean):
+                                compiled_data['by_group'][group][metric].append(exp_mean)
                     
                     # Add to group data - recording level metrics
                     for metric in recording_metrics_list:
@@ -399,62 +370,22 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
                     compiled_data['by_group'][group]['exp_names'].append(exp)
                     if 'channels' in processed_data and processed_data['channels'] is not None:
                         compiled_data['by_group'][group]['channels'].extend(safe_flatten_array(processed_data['channels']))
-                    
-                    # Print electrode-level metrics status
-                    print("  Electrode-level metrics were processed.")
-                    if exp in compiled_data['by_experiment']:
-                        print(f"  Activity metrics now available for {exp}: {list(compiled_data['by_experiment'][exp]['activity'].keys())}")
                         
                 except Exception as e:
                     files_with_errors += 1
                     print(f"Error loading {electrode_file}: {e}")
                     import traceback
                     traceback.print_exc()
-
-    # Add summary stats at the end
-    print(f"\nNeuronal activity data summary:")
-    print(f"  Found {recording_files_found} recordingLevelActivity.mat files")
-    print(f"  Successfully loaded {recording_files_loaded} recording files")
-    print(f"  Found and loaded {files_loaded} electrodeLevelActivity.mat files")
-    print(f"  {files_with_errors} files had loading errors")
     
-    # Check which recording-level metrics are available in the compiled data
-    print("\nRecording-level metrics available in at least one experiment:")
-    for metric in recording_metrics_list:
-        has_values = False
-        for group in compiled_data['by_group']:
-            if compiled_data['by_group'][group][metric]:
-                has_values = True
-                break
-        if has_values:
-            print(f"- {metric}")
-    
-    print("\nDEBUG: Checking recording-level metrics by DIV")
-    for div in compiled_data['divs']:
-        if div in compiled_data['by_div']:
-            div_metrics = [m for m in compiled_data['by_div'][div].keys() 
-                        if m not in ['exp_names', 'groups', 'channels', 'FR', 'channelBurstRate', 
-                                    'channelBurstDur', 'channelISIwithinBurst', 
-                                    'channeISIoutsideBurst', 'channelFracSpikesInBursts']]
-            
-            # Only report if there are actual recording metrics
-            if div_metrics:
-                print(f"  DIV {div} has recording metrics: {div_metrics}")
-                
-                # Check a couple key metrics
-                for key_metric in ['FRmean', 'NBurstRate']:
-                    if key_metric in compiled_data['by_div'][div]:
-                        values = compiled_data['by_div'][div][key_metric]
-                        print(f"    {key_metric}: {len(values)} values")
-                        if values:
-                            print(f"      First few values: {values[:min(3, len(values))]}")
+    # Add final summary (simplified)
+    print(f"\nNeuronal activity data loaded: {files_loaded} electrode files, {files_with_errors} errors")
     
     return compiled_data
 
 def load_network_metrics_data(graph_data_folder, data_info):
     """
     Load network metrics data from GraphData folder with improved handling of MATLAB structures
-    FIXED: Now uses correct MEA-NAP metric field names
+    Uses correct MEA-NAP metric field names
     
     Parameters:
     -----------
@@ -478,7 +409,7 @@ def load_network_metrics_data(graph_data_folder, data_info):
         'lags': data_info['lags']
     }
     
-    # FIXED: Use correct MEA-NAP field names
+    # Use correct MEA-NAP field names
     node_metrics_fields = ['ND', 'NS', 'MEW', 'Eloc', 'BC', 'PC', 'Z', 'aveControl', 'modalControl', 'channels']
     network_metrics_fields = ['aN', 'Dens', 'NDmean', 'NDtop25', 'sigEdgesMean', 'sigEdgesTop10', 
                              'NSmean', 'ElocMean', 'CC', 'nMod', 'Q', 'PL', 'PCmean', 'Eglob', 'SW', 'SWw']
@@ -506,10 +437,6 @@ def load_network_metrics_data(graph_data_folder, data_info):
             'node_metrics': {field: [] for field in node_metrics_fields + ['exp_names', 'groups', 'divs']},
             'network_metrics': {field: [] for field in network_metrics_fields + ['exp_names', 'groups', 'divs']}
         }
-    
-    # Loop through groups and experiments
-    print("\nDEBUG: Examining network metrics files...")
-    sample_files_checked = 0
     
     for group in data_info['groups']:
         for exp in data_info['experiments'][group]:
@@ -541,37 +468,7 @@ def load_network_metrics_data(graph_data_folder, data_info):
                 
                 if node_file:
                     try:
-                        if sample_files_checked < 3:  # Limit to 3 files to avoid too much logging
-                            sample_files_checked += 1
-                            print(f"\nExamining node metrics file: {node_file}")
-                            
-                            node_data = load_mat_file(node_file)
-                            print(f"Keys in node_data: {list(node_data.keys())}")
-                            
-                            # Check for nodeLevelData or nodeMetrics
-                            possible_keys = ['nodeLevelData', 'nodeMetrics', 'nodeData']
-                            found_key = None
-                            for key in possible_keys:
-                                if key in node_data:
-                                    found_key = key
-                                    print(f"{key} key found in file")
-                                    break
-                            
-                            if found_key:
-                                node_metrics = node_data[found_key]
-                                if hasattr(node_metrics, '_fieldnames'):
-                                    print(f"{found_key} fields: {node_metrics._fieldnames}")
-                                elif isinstance(node_metrics, dict):
-                                    print(f"{found_key} keys: {list(node_metrics.keys())}")
-                            
-                            # Test extraction of a few key metrics
-                            node_metrics_struct = extract_matlab_struct_data(node_data, found_key if found_key else 'nodeLevelData', node_data)
-                            for metric in ['ND', 'NS', 'BC']:
-                                metric_data = extract_matlab_struct_data(node_metrics_struct, metric, [])
-                                print(f"Extracted {metric}: {type(metric_data)}, length: {len(safe_flatten_array(metric_data))}")
-                                if len(safe_flatten_array(metric_data)) > 0:
-                                    print(f"  Sample values: {safe_flatten_array(metric_data)[:3]}")
-                        
+                        # Load data for processing
                         node_data = load_mat_file(node_file)
                         
                         # Process the node metrics structure using our robust extraction function
@@ -585,7 +482,6 @@ def load_network_metrics_data(graph_data_folder, data_info):
                             temp_struct = extract_matlab_struct_data(node_data, struct_name, None)
                             if temp_struct is not None:
                                 node_metrics_struct = temp_struct
-                                print(f"Using {struct_name} struct for node metrics")
                                 break
                         
                         # Extract the metrics we care about using correct MEA-NAP field names
@@ -686,6 +582,8 @@ def load_network_metrics_data(graph_data_folder, data_info):
                     except Exception as e:
                         print(f"Error loading {net_file}: {e}")
     
+    print(f"Network metrics data loaded for {len(data_info['lags'])} lag values")
+    
     return compiled_data
 
 def load_node_cartography_data(graph_data_folder, data_info):
@@ -713,7 +611,7 @@ def load_node_cartography_data(graph_data_folder, data_info):
         'lags': data_info['lags']
     }
     
-    # Initialize data structures (as before)
+    # Initialize data structures
     for group in data_info['groups']:
         compiled_data['by_group'][group] = {}
         for lag in data_info['lags']:
@@ -817,7 +715,7 @@ def load_node_cartography_data(graph_data_folder, data_info):
                     except Exception as e:
                         print(f"Error loading {cart_file}: {e}")
     
-    # Calculate role proportions (as before)
+    # Calculate role proportions
     for group in data_info['groups']:
         for lag in data_info['lags']:
             group_data = compiled_data['by_group'][group][lag]
@@ -843,5 +741,7 @@ def load_node_cartography_data(graph_data_folder, data_info):
                 }
             else:
                 div_data['role_proportions'] = {role: 0 for role in div_data['role_counts']}
+    
+    print(f"Node cartography data loaded for {len(data_info['lags'])} lag values")
     
     return compiled_data

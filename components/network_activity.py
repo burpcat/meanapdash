@@ -1,4 +1,4 @@
-# components/network_activity.py - Enhanced Network Visualizations
+# components/network_activity.py - Enhanced Network Visualizations - VERIFIED
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np

@@ -3,20 +3,17 @@ import base64
 from datetime import datetime
 import dash
 from dash import dcc, html, Input, Output, State
+import dash_bootstrap_components as dbc  # MISSING IMPORT - needed for dbc.Card, dbc.Row, etc.
 import plotly.graph_objects as go
 from flask import Flask
-
-# Import Dashboard 2's robust data processing
+from components.layout import create_layout
 from data_processing.data_loader import (scan_graph_data_folder, 
                                         load_neuronal_activity_data, 
                                         load_network_metrics_data,
                                         load_node_cartography_data,
                                         load_mat_file)
 
-# Import Dashboard 1's beautiful layout
-from components.layout import create_layout
 
-# Import Dashboard 2's working visualization functions
 from components.neuronal_activity import (
     create_half_violin_plot_by_group,
     create_half_violin_plot_by_age
@@ -27,10 +24,7 @@ from components.network_activity import (
     create_node_cartography_plot
 )
 
-# Create Flask server
 server = Flask(__name__)
-
-# Create assets folder if it doesn't exist
 assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 os.makedirs(assets_dir, exist_ok=True)
 
@@ -40,7 +34,8 @@ app = dash.Dash(
     server=server,
     title="MEA-NAP Dashboard",
     suppress_callback_exceptions=True,
-    assets_folder=assets_dir
+    assets_folder=assets_dir,
+    external_stylesheets=[dbc.themes.BOOTSTRAP]  # ADDED - needed for dbc components
 )
 
 # Initialize app with empty data structures for dynamic loading (Dashboard 1 style)
@@ -51,6 +46,220 @@ app.data = {
     'cartography': {'groups': [], 'divs': [], 'lags': []},
     'loaded': False  # Track if data has been loaded
 }
+
+def create_neuronal_metric_cards():
+    """
+    Create clickable metric cards for the neuronal activity dashboard
+    These are the cards your callbacks are expecting to receive clicks from
+    """
+    
+    # Card styling
+    card_style = {
+        'textAlign': 'center',
+        'padding': '20px',
+        'margin': '10px',
+        'border': '2px solid #dee2e6',
+        'borderRadius': '10px',
+        'backgroundColor': '#f8f9fa',
+        'cursor': 'pointer',
+        'transition': 'all 0.3s ease',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+        'minHeight': '140px'
+    }
+    
+    # Individual cards - these IDs MUST match your callback inputs
+    cards = [
+        # Mean Firing Rate Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Mean Firing Rate", className="card-title", 
+                       style={'color': '#007bff', 'marginBottom': '10px'}),
+                html.P("Recording-level average firing rate across all active electrodes", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-chart-line fa-2x", style={'color': '#007bff'})
+            ])
+        ], id="mean-firing-rate-card", style=card_style, className="metric-card"),
+        
+        # Active Electrodes Card  
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Active Electrodes", className="card-title", 
+                       style={'color': '#28a745', 'marginBottom': '10px'}),
+                html.P("Number of electrodes with significant activity", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-circle-nodes fa-2x", style={'color': '#28a745'})
+            ])
+        ], id="active-electrodes-card", style=card_style, className="metric-card"),
+        
+        # Network Burst Rate Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Network Burst Rate", className="card-title", 
+                       style={'color': '#ffc107', 'marginBottom': '10px'}),
+                html.P("Frequency of network-wide bursting events", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-wave-square fa-2x", style={'color': '#ffc107'})
+            ])
+        ], id="burst-rate-card", style=card_style, className="metric-card"),
+        
+        # Network Burst Length Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Network Burst Length", className="card-title", 
+                       style={'color': '#dc3545', 'marginBottom': '10px'}),
+                html.P("Average duration of network burst events", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-stopwatch fa-2x", style={'color': '#dc3545'})
+            ])
+        ], id="network-burst-card", style=card_style, className="metric-card"),
+        
+        # ISI Within Bursts Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("ISI Within Bursts", className="card-title", 
+                       style={'color': '#6f42c1', 'marginBottom': '10px'}),
+                html.P("Inter-spike interval during burst periods", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-clock fa-2x", style={'color': '#6f42c1'})
+            ])
+        ], id="isi-within-burst-card", style=card_style, className="metric-card"),
+        
+        # ISI Outside Bursts Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("ISI Outside Bursts", className="card-title", 
+                       style={'color': '#fd7e14', 'marginBottom': '10px'}),
+                html.P("Inter-spike interval during non-burst periods", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-history fa-2x", style={'color': '#fd7e14'})
+            ])
+        ], id="isi-outside-burst-card", style=card_style, className="metric-card"),
+        
+        # Fraction Spikes in Bursts Card
+        dbc.Card([
+            dbc.CardBody([
+                html.H4("Fraction in Bursts", className="card-title", 
+                       style={'color': '#20c997', 'marginBottom': '10px'}),
+                html.P("Proportion of spikes occurring during bursts", 
+                      className="card-text", style={'fontSize': '12px'}),
+                html.I(className="fas fa-percentage fa-2x", style={'color': '#20c997'})
+            ])
+        ], id="fraction-spikes-card", style=card_style, className="metric-card")
+    ]
+    
+    # Return the cards in a responsive grid
+    return html.Div([
+        html.H3("📊 Click on a Metric for Detailed Analysis", 
+               style={'textAlign': 'center', 'marginBottom': '20px', 'color': '#2C3E50'}),
+        dbc.Row([
+            dbc.Col(card, width=12, md=6, lg=4) for card in cards
+        ], className="g-3")  # g-3 adds gap between cards
+    ])
+
+def create_network_tab_content():
+    """Placeholder for network tab content"""
+    return html.Div([
+        html.H3("Network Analysis"),
+        html.P("Network analysis content will be added here...")
+    ])
+
+def create_cartography_tab_content():
+    """Placeholder for cartography tab content"""
+    return html.Div([
+        html.H3("Node Cartography"),
+        html.P("Node cartography content will be added here...")
+    ])
+
+def create_neuronal_tab_content():
+    """Create the enhanced neuronal activity tab content"""
+    return html.Div([
+        # Hidden data stores - IMPORTANT: Add these for state management
+        html.Div([
+            dcc.Store(id="selected-metric-store", data=None),
+        ], style={'display': 'none'}),
+        
+        # Control panel
+        dbc.Card([
+            dbc.CardHeader([
+                html.H4([
+                    html.I(className="fas fa-cogs", style={'marginRight': '10px'}),
+                    "Analysis Controls"
+                ], style={'margin': '0'})
+            ]),
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("📈 Plot Type:", style={'fontWeight': 'bold', 'marginBottom': '5px'}),
+                        dcc.RadioItems(
+                            id="neuronal-plot-type",
+                            options=[
+                                {'label': ' 🎻 Violin Plot', 'value': 'violin'},
+                                {'label': ' 📦 Box Plot', 'value': 'box'},
+                                {'label': ' 📊 Bar Plot', 'value': 'bar'}
+                            ],
+                            value='violin',
+                            inline=True,
+                            labelStyle={'marginRight': '15px', 'cursor': 'pointer'}
+                        )
+                    ], width=12, md=4),
+                    dbc.Col([
+                        html.Label("🏷️ Select Groups:", style={'fontWeight': 'bold', 'marginBottom': '5px'}),
+                        dcc.Dropdown(
+                            id="neuronal-group-filter",
+                            placeholder="Select groups to display...",
+                            multi=True
+                        )
+                    ], width=12, md=4),
+                    dbc.Col([
+                        html.Label("📅 Select DIVs:", style={'fontWeight': 'bold', 'marginBottom': '5px'}),
+                        dcc.Dropdown(
+                            id="neuronal-div-filter",
+                            placeholder="Select DIVs to display...",
+                            multi=True
+                        )
+                    ], width=12, md=4)
+                ])
+            ])
+        ], style={'marginBottom': '20px'}),
+        
+        # Clickable metric cards
+        create_neuronal_metric_cards(),
+        
+        html.Hr(),
+        
+        # Detailed plot area
+        dbc.Card([
+            dbc.CardHeader([
+                html.H4([
+                    html.I(className="fas fa-chart-area", style={'marginRight': '10px'}),
+                    html.Span(id="neuronal-detail-title", children="Select a metric card above to view detailed analysis")
+                ], style={'margin': '0', 'color': '#2C3E50'})
+            ]),
+            dbc.CardBody([
+                dcc.Graph(
+                    id="neuronal-detail-plot",
+                    style={'height': '600px'},
+                    config={'displayModeBar': True, 'displaylogo': False}
+                )
+            ])
+        ], style={'marginBottom': '20px'}),
+        
+        html.Hr(),
+        
+        # Traditional dropdown-based plots (your existing functionality)
+        html.H3("🔧 Traditional Analysis Views", style={'marginTop': '30px', 'marginBottom': '20px', 'color': '#6c757d'}),
+        dbc.Tabs([
+            dbc.Tab(label="Electrode-Level by Group", tab_id="electrode-group"),
+            dbc.Tab(label="Electrode-Level by Age", tab_id="electrode-age"),
+            dbc.Tab(label="Recording-Level by Group", tab_id="recording-group"),
+            dbc.Tab(label="Recording-Level by Age", tab_id="recording-age"),
+        ], id="neuronal-subtabs", active_tab="electrode-group"),
+        
+        html.Div(id="neuronal-subtab-content", children=[
+            html.P("Your existing dropdown-based plots will continue to work here.", 
+                   style={'color': '#6c757d', 'fontStyle': 'italic', 'textAlign': 'center', 'marginTop': '20px'})
+        ])
+    ])
 
 # Create app layout using Dashboard 1's beautiful UI
 app.layout = create_layout(app)
@@ -236,109 +445,51 @@ def store_current_comparison(neuronal_tab, network_tab, activity_tab):
 
 # Dashboard 1's metric options callback with Dashboard 2's metric definitions
 @app.callback(
-    [Output('metric-dropdown', 'options'),
-     Output('metric-dropdown', 'value'),
-     Output('lag-dropdown-container', 'style')],
+    [Output('lag-dropdown-container', 'style')],
     [Input('current-comparison-store', 'data')],
     prevent_initial_call=True
 )
 def update_metric_options(current_selection):
     """Update the metric dropdown based on the current activity and comparison tabs"""
     if not current_selection:
-        return [], None, {'display': 'none'}
+        return [{'display': 'none'}]
     
     activity = current_selection.get('activity')
     comparison = current_selection.get('comparison')
     
     if not activity or not comparison:
-        return [], None, {'display': 'none'}
+        return [{'display': 'none'}]
     
     # Get metrics based on activity and comparison (matching your file structure)
     if activity == 'neuronal':
         if comparison in ['nodebygroup', 'nodebyage']:
             # Electrode-level neuronal metrics (matching 1_NodeByGroup & 2_NodeByAge)
-            metrics = [
-                {'label': 'Mean Firing Rate Node', 'value': 'FR'},
-                {'label': 'Mean Firing Rate Active Node', 'value': 'FR'},  # Note: same backend field
-                {'label': 'Unit Burst Rate (per minute)', 'value': 'channelBurstRate'},
-                {'label': 'Unit Within-Burst Firing Rate (Hz)', 'value': 'channelBurstRate'},  # Related metric
-                {'label': 'Unit Burst Duration (ms)', 'value': 'channelBurstDur'},
-                {'label': 'Unit ISI Within Burst (ms)', 'value': 'channelISIwithinBurst'},
-                {'label': 'Unit ISI Outside Burst (ms)', 'value': 'channeISIoutsideBurst'},
-                {'label': 'Unit Fraction of Spikes in Bursts', 'value': 'channelFracSpikesInBursts'}
-            ]
-            default_metric = 'FR'
             show_lag = False
         else:  # recordingsbygroup, recordingsbyage
             # Recording-level neuronal metrics (matching 3_RecordingsByGroup)
-            metrics = [
-                {'label': 'Number of Active Electrodes', 'value': 'numActiveElec'},
-                {'label': 'Mean Firing Rate (Hz)', 'value': 'FRmean'},
-                {'label': 'Median Firing Rate (Hz)', 'value': 'FRmedian'},
-                {'label': 'Network Burst Rate (per minute)', 'value': 'NBurstRate'},
-                {'label': 'Mean Number of Channels Involved in Network Bursts', 'value': 'meanNumChansInvolvedInNbursts'},
-                {'label': 'Mean Network Burst Length (s)', 'value': 'meanNBstLengthS'},
-                {'label': 'Mean ISI Within Network Burst (ms)', 'value': 'meanISIWithinNbursts_ms'},
-                {'label': 'Mean ISI Outside Network Bursts (ms)', 'value': 'meanISIoutsideNbursts_ms'},
-                {'label': 'Coefficient of Variation of Inter Network Burst Intervals', 'value': 'CVofINBI'},
-                {'label': 'Fraction of Bursts in Network Bursts', 'value': 'fracInNburst'},
-                {'label': 'Single-Electrode Burst Rate (per minute)', 'value': 'channelBurstRate'},
-                {'label': 'Single-Electrode Average Burst Duration (ms)', 'value': 'channelBurstDur'},
-                {'label': 'Single-Electrode Average ISI Within Burst (ms)', 'value': 'channelISIwithinBurst'},
-                {'label': 'Single-Electrode Average ISI Outside Burst (ms)', 'value': 'channeISIoutsideBurst'},
-                {'label': 'Mean Fraction of Spikes in Bursts per Electrode', 'value': 'channelFracSpikesInBursts'}
-            ]
-            default_metric = 'FRmean'
             show_lag = False
     else:  # network
         if comparison in ['nodebygroup', 'nodebyage']:
             # Node-level network metrics (Dashboard 2 MEA-NAP field names)
-            metrics = [
-                {'label': 'Node Degree', 'value': 'ND'},
-                {'label': 'Node Strength', 'value': 'NS'},
-                {'label': 'Betweenness Centrality', 'value': 'BC'},
-                {'label': 'Local Efficiency', 'value': 'Eloc'},
-                {'label': 'Participation Coefficient', 'value': 'PC'},
-                {'label': 'Within-Module Z-Score', 'value': 'Z'}
-            ]
-            default_metric = 'ND'
             show_lag = True
         elif comparison in ['recordingsbygroup', 'recordingsbyage']:
             # Network-level metrics (Dashboard 2 MEA-NAP field names)
-            metrics = [
-                {'label': 'Network Density', 'value': 'Dens'},
-                {'label': 'Global Efficiency', 'value': 'Eglob'},
-                {'label': 'Modularity', 'value': 'Q'},
-                {'label': 'Clustering Coefficient', 'value': 'CC'},
-                {'label': 'Small-worldness Sigma', 'value': 'SW'}
-            ]
-            default_metric = 'Dens'
             show_lag = True
         elif comparison == 'graphmetricsbylag':
-            metrics = [
-                {'label': 'Network Density', 'value': 'Dens'},
-                {'label': 'Global Efficiency', 'value': 'Eglob'},
-                {'label': 'Modularity', 'value': 'Q'},
-                {'label': 'Clustering Coefficient', 'value': 'CC'}
-            ]
-            default_metric = 'Dens'
             show_lag = False  # No lag dropdown for lag comparison
         elif comparison == 'nodecartography':
-            metrics = []  # No metric selection for cartography
-            default_metric = None
             show_lag = True
     
     # Show/hide lag dropdown
     lag_style = {'display': 'block' if show_lag else 'none', 'marginBottom': '15px'}
     
-    return metrics, default_metric, lag_style
+    return [lag_style]
 
 # Main visualization callback bridging Dashboard 1 UI with Dashboard 2 functionality
 @app.callback(
     Output('visualization-graph', 'figure'),
     [Input('group-dropdown', 'value'),
      Input('div-dropdown', 'value'),
-     Input('metric-dropdown', 'value'),
      Input('viz-type', 'value'),
      Input('lag-dropdown', 'value'),
      Input('current-comparison-store', 'data'),
@@ -430,11 +581,7 @@ def update_visualization(groups, selected_divs, metric, viz_type, lag, current_s
         traceback.print_exc()
         return go.Figure().update_layout(title=f'Error: {str(e)}')
     
-# Add these imports at the top of app.py
-import base64
-from datetime import datetime
-
-# Add this callback after your existing callbacks in app.py
+# Export visualization callback
 @app.callback(
     [Output("download-visualization", "data"), 
      Output("export-status", "children")],
@@ -444,7 +591,6 @@ from datetime import datetime
     [State('visualization-graph', 'figure'),
      State('group-dropdown', 'value'),
      State('div-dropdown', 'value'),
-     State('metric-dropdown', 'value'),
      State('lag-dropdown', 'value'),
      State('current-comparison-store', 'data'),
      State('export-filename-input', 'value')],
