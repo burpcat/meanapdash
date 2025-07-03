@@ -40,7 +40,7 @@ def create_enhanced_network_half_violin_plot_by_group(data, metric, lag, title, 
     """
     Create an enhanced half violin plot for network metrics by group with adaptive visualization
     """
-    print(f"\nDEBUG: Creating enhanced network half violin plot by group for metric: {metric}, lag: {lag}")
+    # print(f"\nDEBUG: Creating enhanced network half violin plot by group for metric: {metric}, lag: {lag}")
     
     groups = data['groups']
     divs = sorted(data['divs'])

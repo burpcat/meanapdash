@@ -5,19 +5,7 @@ import re
 
 def calculate_half_violin_data(data_values, bandwidth=None):
     """
-    Calculate kernel density estimation for half violin plots
-    
-    Parameters:
-    -----------
-    data_values : array-like
-        Data values to calculate KDE
-    bandwidth : float, optional
-        Bandwidth for KDE
-        
-    Returns:
-    --------
-    dict
-        Dictionary with KDE data
+    Calculate kernel density estimation for half violin plots with robust error handling
     """
     # Remove NaN values
     data_values = np.array(data_values)
@@ -34,30 +22,69 @@ def calculate_half_violin_data(data_values, bandwidth=None):
             'sem': stats.sem(data_values) if len(data_values) > 0 else np.nan
         }
     
-    # Calculate KDE
-    if bandwidth is None:
-        # Use Scott's rule for bandwidth selection
-        bandwidth = 1.06 * np.std(data_values) * len(data_values) ** (-1/5)
+    # CHECK FOR LOW VARIANCE DATA (main fix for the KDE error)
+    data_std = np.std(data_values)
+    data_range = np.max(data_values) - np.min(data_values)
     
-    kde = stats.gaussian_kde(data_values, bw_method=bandwidth)
-    x_min, x_max = np.min(data_values), np.max(data_values)
-    # Extend range by 5% on each side
-    x_range = x_max - x_min
-    x_min -= 0.05 * x_range
-    x_max += 0.05 * x_range
+    # If all values are identical or nearly identical
+    if data_std < 1e-10 or data_range < 1e-10:
+        print(f"⚠️ WARNING: Low variance data detected (std={data_std:.2e}, range={data_range:.2e})")
+        print(f"Values: {data_values[:10]}...")  # Show first 10 values
+        
+        # Return a simple point distribution instead of KDE
+        mean_val = np.mean(data_values)
+        return {
+            'x': [mean_val - 0.1, mean_val, mean_val + 0.1],  # Small spread around mean
+            'y': [0, len(data_values), 0],  # Simple triangle distribution
+            'raw_data': data_values,
+            'mean': mean_val,
+            'median': np.median(data_values),
+            'std': data_std,
+            'sem': stats.sem(data_values)
+        }
     
-    x = np.linspace(x_min, x_max, 100)
-    y = kde(x)
-    
-    return {
-        'x': x,
-        'y': y,
-        'raw_data': data_values,
-        'mean': np.mean(data_values),
-        'median': np.median(data_values),
-        'std': np.std(data_values),
-        'sem': stats.sem(data_values)
-    }
+    # NORMAL KDE CALCULATION for data with variance
+    try:
+        # Calculate KDE
+        if bandwidth is None:
+            # Use Scott's rule for bandwidth selection
+            bandwidth = 1.06 * np.std(data_values) * len(data_values) ** (-1/5)
+        
+        kde = stats.gaussian_kde(data_values, bw_method=bandwidth)
+        x_min, x_max = np.min(data_values), np.max(data_values)
+        # Extend range by 5% on each side
+        x_range = x_max - x_min
+        x_min -= 0.05 * x_range
+        x_max += 0.05 * x_range
+        
+        x = np.linspace(x_min, x_max, 100)
+        y = kde(x)
+        
+        return {
+            'x': x,
+            'y': y,
+            'raw_data': data_values,
+            'mean': np.mean(data_values),
+            'median': np.median(data_values),
+            'std': np.std(data_values),
+            'sem': stats.sem(data_values)
+        }
+        
+    except Exception as e:
+        print(f"⚠️ KDE calculation failed: {e}")
+        # Fallback to simple distribution
+        mean_val = np.mean(data_values)
+        std_val = np.std(data_values)
+        
+        return {
+            'x': [mean_val - std_val, mean_val, mean_val + std_val],
+            'y': [0, len(data_values), 0],
+            'raw_data': data_values,
+            'mean': mean_val,
+            'median': np.median(data_values),
+            'std': std_val,
+            'sem': stats.sem(data_values)
+        }
 
 def extract_div_value(div_string):
     """

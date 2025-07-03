@@ -107,7 +107,45 @@ def create_half_violin_plot_by_group(data, metric, title, selected_groups=None, 
     """
     Create MEA-NAP MATLAB style violin plot with comprehensive statistics
     """
-    print(f"\nDEBUG: Creating MEA-NAP style violin plot by group for metric: {metric}")
+
+    def debug_plot_data(data, metric, title, selected_groups=None, selected_divs=None):
+        """Debug function to print what data is being passed to plotting functions"""
+        print(f"\n🎨 DEBUG PLOT DATA for {metric}:")
+        print(f"Title: {title}")
+        print(f"Selected groups: {selected_groups}")
+        print(f"Selected divs: {selected_divs}")
+        
+        if selected_groups:
+            groups = [g for g in selected_groups if g in data['groups']]
+        else:
+            groups = data['groups']
+        
+        print(f"Filtered groups: {groups}")
+        
+        for group in groups:
+            if group not in data['by_group']:
+                print(f"❌ Group {group} not in data['by_group']")
+                continue
+                
+            group_data = data['by_group'][group]
+            if metric not in group_data:
+                print(f"❌ Metric {metric} not in group {group}")
+                print(f"   Available in {group}: {list(group_data.keys())}")
+                continue
+            
+            values = group_data[metric]
+            print(f"✅ Group {group}: {type(values)} with {len(values) if isinstance(values, list) else 1} values")
+            
+            if isinstance(values, list):
+                valid_values = [v for v in values if v is not None and not (isinstance(v, float) and np.isnan(v))]
+                print(f"   Valid values: {len(valid_values)}/{len(values)}")
+                if valid_values:
+                    print(f"   Sample: {valid_values[:3]}")
+                else:
+                    print(f"   ❌ NO VALID VALUES after filtering!")
+    # print(f"\nDEBUG: Creating MEA-NAP style violin plot by group for metric: {metric}")
+
+    debug_plot_data(data, metric, title, selected_groups, selected_divs)
     
     # Filter data
     if selected_groups:
@@ -374,7 +412,7 @@ def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, se
     """
     Create MEA-NAP MATLAB style violin plot by age with comprehensive statistics
     """
-    print(f"\nDEBUG: Creating MEA-NAP style violin plot by age for metric: {metric}")
+    # print(f"\nDEBUG: Creating MEA-NAP style violin plot by age for metric: {metric}")
     
     # Filter data
     if selected_divs:
@@ -631,7 +669,7 @@ def create_box_plot_by_group(data, metric, title, selected_groups=None, selected
     """
     Create MEA-NAP style box plot by group
     """
-    print(f"\nDEBUG: Creating box plot by group for metric: {metric}")
+    # print(f"\nDEBUG: Creating box plot by group for metric: {metric}")
     
     # Filter data
     if selected_groups:
@@ -802,7 +840,7 @@ def create_bar_plot_by_group(data, metric, title, selected_groups=None, selected
     """
     Create MEA-NAP style bar plot by group (showing means with error bars)
     """
-    print(f"\nDEBUG: Creating bar plot by group for metric: {metric}")
+    # print(f"\nDEBUG: Creating bar plot by group for metric: {metric}")
     
     # Filter data
     if selected_groups:
@@ -954,7 +992,7 @@ def create_box_plot_by_age(data, metric, title, selected_groups=None, selected_d
     """
     Create MEA-NAP style box plot by age (similar to create_box_plot_by_group but organized by DIV)
     """
-    print(f"\nDEBUG: Creating box plot by age for metric: {metric}")
+    # print(f"\nDEBUG: Creating box plot by age for metric: {metric}")
     
     # Filter data
     if selected_divs:
@@ -1126,7 +1164,7 @@ def create_bar_plot_by_age(data, metric, title, selected_groups=None, selected_d
     """
     Create MEA-NAP style bar plot by age (showing means with error bars)
     """
-    print(f"\nDEBUG: Creating bar plot by age for metric: {metric}")
+    # print(f"\nDEBUG: Creating bar plot by age for metric: {metric}")
     
     # Similar to create_bar_plot_by_group but organized by age
     # Implementation follows the same pattern as create_bar_plot_by_group

@@ -32,7 +32,7 @@ def register_network_callbacks(app):
         data = app.data['network']
         
         # Debug available metrics and groups
-        print(f"\nDEBUG: Searching for node-level network metric '{metric}' for lag {lag} by group")
+        # print(f"\nDEBUG: Searching for node-level network metric '{metric}' for lag {lag} by group")
         
         # Check data structure
         print(f"Network data structure has keys: {list(data.keys())}")
