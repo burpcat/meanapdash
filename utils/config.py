@@ -16,8 +16,8 @@ from typing import Dict, List, Any
 # MEA-NAP Data Processing Settings - User Configurable
 MEA_NAP_SETTINGS = {
     # IMPORTANT: User's conservative setting vs MEA-NAP default
-    'active_electrode_threshold': 0.01,    # User's setting: 0.01 Hz (conservative)
-    # 'active_electrode_threshold': 0.1,   # MEA-NAP default: 0.1 Hz (standard)
+    # 'active_electrode_threshold': 0.01,    # User's setting: 0.01 Hz (conservative)
+    'active_electrode_threshold': 0.1,   # MEA-NAP default: 0.1 Hz (standard)
     
     'burst_detection_threshold': 0.0,      # Minimum burst rate for valid bursts
     'min_electrode_count': 1,              # Minimum electrodes for valid recording
@@ -341,3 +341,61 @@ def get_metric_info(metric: str) -> Dict[str, Any]:
 # Backward compatibility aliases
 ELECTRODE_LEVEL_METRICS = NODE_LEVEL_METRICS
 is_electrode_level_metric = is_node_level_metric
+
+# Sparse Metrics Configuration
+SPARSE_METRICS = {
+    'channelFRinBurst': {
+        'expected_sparsity': 'high',
+        'description': 'Expected sparse data due to conservative burst detection',
+        'min_points_for_violin': 4,
+        'enhanced_dots': True
+    },
+    'channelBurstRate': {
+        'expected_sparsity': 'medium',
+        'description': 'Some electrodes may not exhibit bursting behavior',
+        'min_points_for_violin': 3,
+        'enhanced_dots': True
+    },
+    'channelBurstDur': {
+        'expected_sparsity': 'medium',
+        'description': 'Burst duration only available for bursting electrodes',
+        'min_points_for_violin': 3,
+        'enhanced_dots': True
+    },
+    'channelISIwithinBurst': {
+        'expected_sparsity': 'high',
+        'description': 'ISI within bursts only for electrodes with detected bursts',
+        'min_points_for_violin': 4,
+        'enhanced_dots': True
+    }
+}
+
+def is_sparse_metric(metric):
+    """Check if a metric is expected to have sparse data"""
+    return metric in SPARSE_METRICS
+
+def get_sparse_metric_config(metric):
+    """Get configuration for sparse metrics"""
+    return SPARSE_METRICS.get(metric, {
+        'expected_sparsity': 'none',
+        'description': '',
+        'min_points_for_violin': 4,
+        'enhanced_dots': False
+    })
+
+# Add this to your existing METRIC_TITLES
+METRIC_TITLES_ENHANCED = {
+    # Add enhanced titles with sparsity information
+    'channelFRinBurst': 'Unit within Burst Firing Rate (sparse data expected)',
+    'channelBurstRate': 'Unit Burst Rate (sparse data expected)',
+    'channelBurstDur': 'Unit Burst Duration (sparse data expected)',
+    'channelISIwithinBurst': 'Unit ISI within Burst (sparse data expected)',
+    
+    # Keep existing titles for non-sparse metrics
+    'FR': 'Unit Firing Rate',
+    'numActiveElec': 'Number of Active Electrodes',
+    'FRActive': 'Mean Active Firing Rate',
+    'NBurstRate': 'Network Burst Rate',
+    'FRmean': 'Mean Firing Rate',
+    'FRmedian': 'Median Firing Rate'
+}

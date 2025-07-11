@@ -8,19 +8,36 @@ def calculate_half_violin_data(data_values, bandwidth=None):
     Calculate kernel density estimation for half violin plots with robust error handling
     """
     # Remove NaN values
+    # data_values = np.array(data_values)
+    # data_values = data_values[~np.isnan(data_values)]
+    
+    # if len(data_values) <= 1:
+    #     return {
+    #         'x': [],
+    #         'y': [],
+    #         'raw_data': data_values,
+    #         'mean': np.mean(data_values) if len(data_values) > 0 else np.nan,
+    #         'median': np.median(data_values) if len(data_values) > 0 else np.nan,
+    #         'std': np.std(data_values) if len(data_values) > 0 else np.nan,
+    #         'sem': stats.sem(data_values) if len(data_values) > 0 else np.nan
+    #     }
+
     data_values = np.array(data_values)
     data_values = data_values[~np.isnan(data_values)]
     
     if len(data_values) <= 1:
+        return {'x': [], 'y': [], 'raw_data': data_values, 'mean': np.mean(data_values) if len(data_values) > 0 else np.nan}
+    
+    # CHECK FOR IDENTICAL VALUES (your issue)
+    if len(np.unique(data_values)) == 1:
+        # All values are identical - create a simple distribution
+        unique_val = data_values[0]
         return {
-            'x': [],
-            'y': [],
+            'x': [unique_val - 0.5, unique_val, unique_val + 0.5],
+            'y': [0, len(data_values), 0],
             'raw_data': data_values,
-            'mean': np.mean(data_values) if len(data_values) > 0 else np.nan,
-            'median': np.median(data_values) if len(data_values) > 0 else np.nan,
-            'std': np.std(data_values) if len(data_values) > 0 else np.nan,
-            'sem': stats.sem(data_values) if len(data_values) > 0 else np.nan
-        }
+            'mean': unique_val
+    }
     
     # CHECK FOR LOW VARIANCE DATA (main fix for the KDE error)
     data_std = np.std(data_values)

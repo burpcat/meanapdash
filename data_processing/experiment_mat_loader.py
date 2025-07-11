@@ -330,59 +330,61 @@ def calculate_missing_fields(ephys_data: Dict) -> Dict[str, Any]:
 
 def calculate_within_burst_firing_rate(ephys_data: Dict) -> np.ndarray:
     """
-    Calculate within-burst firing rate from ExperimentMatFiles data
-    
-    This function could potentially be moved to utils/data_helpers.py
-    but keeping it here for now due to MEA-NAP specific methodology
+    Calculate within-burst firing rate - FIXED VERSION
+    Handles conservative MEA-NAP settings properly
     """
     print("🔥 Calculating within-burst firing rate...")
     
-    # Extract required fields using utils functions for validation
-    FR = clean_numeric_array(ephys_data.get('FR', np.array([])))
-    frac_in_bursts = clean_numeric_array(ephys_data.get('channelFracSpikesInBursts', np.array([])))
-    burst_rate = clean_numeric_array(ephys_data.get('channelBurstRate', np.array([])))
-    burst_dur = clean_numeric_array(ephys_data.get('channelBurstDur', np.array([])))
+    # Extract required fields
+    FR = np.array(ephys_data.get('FR', []))
+    frac_in_bursts = np.array(ephys_data.get('channelFracSpikesInBursts', []))
+    burst_rate = np.array(ephys_data.get('channelBurstRate', []))
+    burst_dur = np.array(ephys_data.get('channelBurstDur', []))
     
-    # Check array lengths match
-    if not (len(FR) == len(frac_in_bursts) == len(burst_rate) == len(burst_dur)):
-        print(f"  ⚠ Array length mismatch: FR={len(FR)}, frac={len(frac_in_bursts)}, rate={len(burst_rate)}, dur={len(burst_dur)}")
-        return np.full_like(FR, np.nan)
+    if len(FR) == 0:
+        print("    ❌ No FR data available")
+        return np.array([])
     
-    # Create valid data mask using utils validation
-    valid_mask = np.array([
-        (br > BURST_DETECTION_THRESHOLD and bd > 0 and fib > 0 and 
-         is_valid_numeric_value(fr) and is_valid_numeric_value(fib) and 
-         is_valid_numeric_value(br) and is_valid_numeric_value(bd))
-        for fr, fib, br, bd in zip(FR, frac_in_bursts, burst_rate, burst_dur)
-    ])
-    
-    # Initialize output with NaN
+    # Initialize with NaN
     within_burst_fr = np.full_like(FR, np.nan, dtype=float)
     
-    if np.any(valid_mask):
-        # Calculate using MEA-NAP methodology
+    # STRICT filtering - only electrodes with actual burst activity
+    valid_mask = (
+        (~np.isnan(FR)) & (FR > 0) &                    # Active electrode
+        (~np.isnan(burst_rate)) & (burst_rate > 0) &    # Has bursts
+        (~np.isnan(burst_dur)) & (burst_dur > 0) &      # Valid duration
+        (~np.isnan(frac_in_bursts)) & (frac_in_bursts > 0)  # Spikes in bursts
+    )
+    
+    n_valid = np.sum(valid_mask)
+    print(f"    📊 Electrodes with burst activity: {n_valid}/{len(FR)}")
+    
+    if n_valid == 0:
+        print("    ✅ No burst activity detected (EXPECTED with conservative settings)")
+        return within_burst_fr
+    
+    # Calculate for valid electrodes
+    try:
         spikes_in_bursts_per_sec = FR[valid_mask] * frac_in_bursts[valid_mask]
-        bursts_per_second = burst_rate[valid_mask] / 60.0  # Convert from per minute
-        burst_duration_sec = burst_dur[valid_mask] / 1000.0  # Convert from ms
+        bursts_per_second = burst_rate[valid_mask] / 60.0
+        burst_duration_sec = burst_dur[valid_mask] / 1000.0
         time_in_bursts_per_sec = bursts_per_second * burst_duration_sec
         
-        # Avoid division by very small numbers
-        time_mask = time_in_bursts_per_sec > 1e-10
+        # Safety check for division
+        safe_mask = time_in_bursts_per_sec > 1e-10
         
-        if np.any(time_mask):
-            valid_indices = np.where(valid_mask)[0]
-            final_valid_indices = valid_indices[time_mask]
+        if np.any(safe_mask):
+            result = spikes_in_bursts_per_sec[safe_mask] / time_in_bursts_per_sec[safe_mask]
+            final_indices = np.where(valid_mask)[0][safe_mask]
+            within_burst_fr[final_indices] = result
             
-            within_burst_fr[final_valid_indices] = (
-                spikes_in_bursts_per_sec[time_mask] / time_in_bursts_per_sec[time_mask]
-            )
+            print(f"    ✅ Calculated for {len(result)} electrodes")
+            print(f"    📊 Range: {np.min(result):.1f} - {np.max(result):.1f} Hz")
+        else:
+            print("    ⚠️ Time values too small for calculation")
     
-    valid_calculations = np.sum(~np.isnan(within_burst_fr))
-    print(f"    Valid calculations: {valid_calculations}/{len(within_burst_fr)}")
-    
-    if valid_calculations > 0:
-        valid_values = within_burst_fr[~np.isnan(within_burst_fr)]
-        print(f"    Range: {np.min(valid_values):.3f} - {np.max(valid_values):.3f} Hz")
+    except Exception as e:
+        print(f"    ❌ Calculation error: {e}")
     
     return within_burst_fr
 

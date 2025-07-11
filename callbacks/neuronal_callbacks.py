@@ -11,10 +11,10 @@ from utils import (
     create_error_plot
 )
 
-# Direct imports from components
 from components.neuronal_activity import (
     create_half_violin_plot_by_group,
-    create_half_violin_plot_by_age
+    create_half_violin_plot_by_age,
+    analyze_burst_data_distribution
 )
 
 def register_neuronal_callbacks(app):
@@ -124,7 +124,11 @@ def register_neuronal_callbacks(app):
             
             # Process the data using utils package
             processed_data = process_metric(metric, app.data['neuronal'], groups, selected_divs)
-            
+
+            # ADD DIAGNOSTIC FOR BURST METRICS
+            if metric in ['channelBurstRate', 'channelFRinBurst', 'channelBurstDur']:
+                analyze_burst_data_distribution(app.data['neuronal'], metric)
+
             # Create title using utils
             metric_title = get_metric_title(metric)
             title = f"{metric_title} by Group"
@@ -157,7 +161,11 @@ def register_neuronal_callbacks(app):
             
             # Process the data using utils package
             processed_data = process_metric(metric, app.data['neuronal'], groups, selected_divs)
-            
+
+            # ADD DIAGNOSTIC FOR BURST METRICS
+            if metric in ['channelBurstRate', 'channelFRinBurst', 'channelBurstDur']:
+                analyze_burst_data_distribution(app.data['neuronal'], metric)
+
             # Create title using utils
             metric_title = get_metric_title(metric)
             title = f"{metric_title} by Age"
@@ -190,7 +198,11 @@ def register_neuronal_callbacks(app):
             
             # Process the data using utils package
             processed_data = process_metric(metric, app.data['neuronal'], groups, selected_divs)
-            
+
+            if metric in ['channelBurstRate', 'channelFRinBurst', 'channelBurstDur']:
+                from components.neuronal_activity import analyze_burst_data_distribution
+                analyze_burst_data_distribution(app.data['neuronal'], metric)
+
             # Create title using utils
             metric_title = get_metric_title(metric)
             title = f"{metric_title} by Group"
@@ -223,7 +235,11 @@ def register_neuronal_callbacks(app):
             
             # Process the data using utils package
             processed_data = process_metric(metric, app.data['neuronal'], groups, selected_divs)
-            
+
+            # ADD DIAGNOSTIC FOR BURST METRICS
+            if metric in ['channelBurstRate', 'channelFRinBurst', 'channelBurstDur']:
+                analyze_burst_data_distribution(app.data['neuronal'], metric)
+
             # Create title using utils
             metric_title = get_metric_title(metric)
             title = f"{metric_title} by Age"

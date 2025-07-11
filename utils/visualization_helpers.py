@@ -279,7 +279,7 @@ def organize_plot_data(data: Dict, metric: str, groups: List[str],
                                 div_values.append(value)
                 
                 # If no DIV-specific data found, use all data (fallback)
-                if not div_values:
+                if len(div_values) == 0:
                     div_values = group_data[metric]
             else:
                 # For electrode-level data, use all values
