@@ -42,23 +42,36 @@ PLOT_CONFIG = {
 # UTILITY FUNCTIONS - Data Processing and Preparation
 # =============================================================================
 
-def prepare_data_for_plotting(data, metric, groups, selected_divs):
+def prepare_data_for_plotting(data, metric, groups, selected_divs, comparison_type='nodebygroup'):
     """
     Prepare data for plotting by extracting and organizing values by group and DIV
-    FIXED: Handle numpy array boolean comparisons properly
-    """
-    print(f"🔧 Preparing data for plotting: {metric}")
     
-    # Filter groups and DIVs
+    MODIFIED: Removed the by_div routing - Node by Age now uses by_group structure
+    
+    Args:
+        data: Processed data from metric processors
+        metric: Metric field name
+        groups: Selected groups
+        selected_divs: Selected DIVs
+        comparison_type: Type of comparison ('nodebygroup', 'nodebyage', etc.)
+    """
+    print(f"🔧 Preparing data for plotting: {metric} ({comparison_type})")
+    
+    # Filter DIVs
+    if selected_divs:
+        filtered_divs = [d for d in selected_divs if d in data['divs']]
+    else:
+        filtered_divs = sorted(data['divs'])
+    
+    # Filter groups
     if groups:
         filtered_groups = [g for g in groups if g in data['groups']]
     else:
         filtered_groups = data['groups']
     
-    if selected_divs:
-        filtered_divs = [d for d in selected_divs if d in data['divs']]
-    else:
-        filtered_divs = sorted(data['divs'])
+    # ALL COMPARISONS now use by_group structure
+    # The difference is in the visualization, not the data preparation
+    print(f"   Using by_group data structure for all comparison types")
     
     # Organize data by group and DIV
     plot_data = {}
@@ -81,7 +94,7 @@ def prepare_data_for_plotting(data, metric, groups, selected_divs):
             if 'exp_names' in group_data and len(group_data['exp_names']) > 0:
                 # Extract values for this specific DIV
                 for i, exp_name in enumerate(group_data['exp_names']):
-                    if any(f'DIV{div}' in part for part in exp_name.split('_')):
+                    if f'DIV{div}' in exp_name:
                         if i < len(group_data[metric]):
                             value = group_data[metric][i]
                             if isinstance(value, (list, np.ndarray)):
@@ -90,16 +103,16 @@ def prepare_data_for_plotting(data, metric, groups, selected_divs):
                                 div_values.append(value)
                 
                 # If no DIV-specific data found, use all data (fallback)
-                if len(div_values) == 0:  # FIXED: use len() instead of not
+                if len(div_values) == 0:
                     div_values = group_data[metric]
             else:
                 # For electrode-level data, use all values
                 div_values = group_data[metric]
             
-            # Clean the data - FIXED: Proper handling of arrays
+            # Clean the data
             if isinstance(div_values, (list, np.ndarray)):
                 if isinstance(div_values, np.ndarray):
-                    div_values = div_values.tolist()  # Convert to list for consistency
+                    div_values = div_values.tolist()
                 clean_values = [v for v in div_values if v is not None and np.isfinite(v)]
             else:
                 clean_values = [div_values] if div_values is not None and np.isfinite(div_values) else []
@@ -698,6 +711,9 @@ def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, se
     """
     Create MEA-NAP style violin plot organized by age
     
+    CORRECTED: Shows separate subplot for each age, with groups compared within each age
+    This matches the expected MEA-NAP output: "Node by Group, stratified by Age"
+    
     Args:
         data: Processed data from metric-specific functions
         metric: Metric field name to plot
@@ -708,12 +724,294 @@ def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, se
     Returns:
         Plotly figure
     """
+    print(f"🎨 Creating violin plot by age for {metric} (Node by Group, stratified by Age)")
     
-    # Prepare data for plotting
-    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(data, metric, selected_groups, selected_divs)
+    # Prepare data using by_group structure (NOT by_div)
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
+        data, metric, selected_groups, selected_divs, 'nodebygroup'  # Use nodebygroup to get group structure
+    )
     
-    # Create violin plot
-    return create_violin_plot_by_age(plot_data, filtered_groups, filtered_divs, metric, title)
+    # Create subplots - one for each DIV/age
+    fig = make_subplots(
+        rows=1, cols=len(filtered_divs), 
+        subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],  # Age50, Age53, etc.
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    max_y = 0
+    is_sparse_metric_flag = is_sparse_metric(metric)
+    total_data_points = 0
+    
+    # For each DIV (age), create a group comparison subplot
+    for col, div in enumerate(filtered_divs, 1):
+        div_has_data = False
+        
+        # Within this DIV, show all groups on X-axis
+        for group_idx, group in enumerate(filtered_groups):
+            if group not in plot_data or div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if not isinstance(div_values, list) or len(div_values) == 0:
+                continue
+            
+            div_has_data = True
+            
+            # Track statistics
+            try:
+                current_max = max(div_values)
+                max_y = max(max_y, current_max)
+                total_data_points += len(div_values)
+            except (ValueError, TypeError):
+                continue
+            
+            # Get colors - use group-specific colors or default
+            color = MATLAB_COLORS.get(group, MATLAB_COLORS['default'])
+            fill_color = MATLAB_FILL_COLORS.get(group, MATLAB_FILL_COLORS['default'])
+            
+            x_base = group_idx + 1  # X-position for this group
+            
+            # ENHANCED SPARSE DATA HANDLING
+            if len(div_values) <= 2:
+                # VERY SPARSE: Large, prominent dots
+                jitter = np.random.normal(0, 0.08, size=len(div_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=div_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=12,
+                            opacity=0.9,
+                            line=dict(width=3, color='black'),
+                            symbol='diamond'
+                        ),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),  # Only show legend for first subplot
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add sample size annotation
+                fig.add_annotation(
+                    x=x_base,
+                    y=max(div_values) + max_y * 0.02,
+                    text=f'<b>n={len(div_values)}</b>',
+                    showarrow=False,
+                    font=dict(size=11, color='darkred'),
+                    yshift=15,
+                    row=1, col=col
+                )
+                
+            elif len(div_values) <= 5:
+                # SPARSE: Medium dots
+                jitter = np.random.normal(0, 0.06, size=len(div_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=div_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=10,
+                            opacity=0.8,
+                            line=dict(width=2, color='black'),
+                            symbol='circle'
+                        ),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add sample size annotation
+                fig.add_annotation(
+                    x=x_base,
+                    y=max(div_values) + max_y * 0.02,
+                    text=f'n={len(div_values)}',
+                    showarrow=False,
+                    font=dict(size=10, color='gray'),
+                    yshift=12,
+                    row=1, col=col
+                )
+            
+            else:
+                # NORMAL DATA: Individual points + violin
+                jitter = np.random.normal(0, 0.04, size=len(div_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=div_values,
+                        mode='markers',
+                        marker=dict(color='black', size=4, opacity=0.6),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add violin for rich data
+                if len(div_values) >= 4:
+                    try:
+                        kde_data = calculate_half_violin_data(div_values)
+                        x_data = kde_data.get('x')
+                        if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
+                            if isinstance(x_data, np.ndarray):
+                                x_data = x_data.tolist()
+                            
+                            fig.add_trace(
+                                go.Violin(
+                                    x=[x_base] * len(x_data),
+                                    y=x_data,
+                                    width=0.6,
+                                    side='both',
+                                    line_color=color,
+                                    fillcolor=fill_color,
+                                    points=False,
+                                    meanline_visible=False,
+                                    showlegend=False,
+                                    hoverinfo='skip'
+                                ),
+                                row=1, col=col
+                            )
+                    except Exception as e:
+                        print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+            
+            # Add mean indicator (always visible)
+            try:
+                mean_value = np.mean(div_values)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=[mean_value],
+                        mode='markers',
+                        marker=dict(
+                            color='white',
+                            size=8 if len(div_values) <= 5 else 6,
+                            opacity=1.0,
+                            line=dict(width=2, color='black')
+                        ),
+                        showlegend=False,
+                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+            except Exception as e:
+                print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+        
+        # Update x-axis for this subplot to show group names
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_groups) + 1)),
+            ticktext=filtered_groups,
+            title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
+            showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+            linecolor='black', linewidth=1,
+            range=[0.5, len(filtered_groups) + 0.5],
+            row=1, col=col
+        )
+        
+        # Add "No Data" annotation for empty age subplots
+        if not div_has_data:
+            y_center = (max_y / 2) if max_y > 0 else 0.5
+            fig.add_annotation(
+                x=len(filtered_groups) / 2 + 0.5,
+                y=y_center,
+                text="<b>No Data</b>",
+                showarrow=False,
+                font=dict(size=16, color='lightgray'),
+                row=1, col=col
+            )
+    
+    # Create layout annotations
+    annotations = []
+    if is_sparse_metric_flag and total_data_points > 0:
+        annotations.append(
+            dict(
+                text="Note: Sparse data expected for burst metrics due to conservative detection settings",
+                showarrow=False,
+                xref="paper", yref="paper",
+                x=0.5, y=-0.15,
+                font=dict(size=10, color='gray'),
+                align="center"
+            )
+        )
+    
+    # Add explanation for Node by Age
+    annotations.append(
+        dict(
+            text="Node by Age: Group comparisons within each age (stratified by DIV)",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.5, y=1.05,
+            font=dict(size=10, color='blue'),
+            align="center"
+        )
+    )
+    
+    # Layout
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        annotations=annotations,
+        margin=dict(b=100 if is_sparse_metric_flag else 60, t=120, l=60, r=60)
+    )
+    
+    # Better axis handling with outlier detection
+    all_values = []
+    for group in plot_data:
+        for div in plot_data[group]:
+            all_values.extend(plot_data[group][div])
+    
+    if len(all_values) > 0:
+        all_values = sorted(all_values)
+        if len(all_values) > 2:
+            p95 = np.percentile(all_values, 95)
+            p5 = np.percentile(all_values, 5)
+            y_max = p95 * 1.2
+            y_min = max(0, p5 * 0.8)
+        else:
+            y_max = max_y * 1.15
+            y_min = 0
+    else:
+        y_max = 1
+        y_min = 0
+    
+    # Y-axis (shared across all subplots)
+    fig.update_yaxes(
+        title_text=f"<b>{get_metric_label(metric)}</b>",
+        range=[y_min, y_max],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1,
+        zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+    )
+    
+    # Add outlier warning if needed
+    if len(all_values) > 0 and max_y > y_max:
+        outlier_count = len([v for v in all_values if v > y_max])
+        fig.add_annotation(
+            text=f"⚠️ {outlier_count} extreme outlier(s) excluded from y-axis scale",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.02, y=0.98,
+            font=dict(size=9, color='orange'),
+            align="left"
+        )
+    
+    print(f"   ✅ Created Node by Age plot: {total_data_points} total data points across {len(filtered_divs)} age subplots")
+    
+    return fig
 
 def create_box_plot_by_group(data, metric, title, selected_groups=None, selected_divs=None):
     """
@@ -801,3 +1099,592 @@ def analyze_burst_data_distribution(data, metric='channelBurstRate'):
                 print(f"    Mean: {np.mean(valid_values):.2f}")
             else:
                 print(f"    No valid burst data detected")
+
+def create_recording_level_violin_plot_by_group(data, metric, title, selected_groups=None, selected_divs=None):
+    """
+    Create violin plot for recording-level data organized by group
+    
+    Key Difference: Each data point represents ONE RECORDING, not one electrode
+    
+    Args:
+        data: Processed data from recording-level metric processors
+        metric: Recording-level metric field name
+        title: Plot title
+        selected_groups: List of groups to include
+        selected_divs: List of DIVs to include
+        
+    Returns:
+        Plotly figure optimized for recording-level data
+    """
+    print(f"🎭 Creating RECORDING-LEVEL violin plot by group for {metric}")
+    
+    # Prepare data for plotting
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
+        data, metric, selected_groups, selected_divs, 'recordingsbygroup'
+    )
+    
+    # Create subplots - one for each group
+    fig = make_subplots(
+        rows=1, cols=len(filtered_groups), 
+        subplot_titles=[f'<b>{g}</b>' for g in filtered_groups],
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    max_y = 0
+    total_recordings = 0
+    
+    # Track which groups have data
+    groups_with_data = set()
+    
+    for col, group in enumerate(filtered_groups, 1):
+        group_has_data = False
+        
+        if group not in plot_data:
+            continue
+            
+        for div_idx, div in enumerate(filtered_divs):
+            if div not in plot_data[group]:
+                continue
+                
+            recording_values = plot_data[group][div]
+            
+            # Handle empty data
+            if not isinstance(recording_values, list) or len(recording_values) == 0:
+                continue
+            
+            # Mark this group as having data
+            group_has_data = True
+            groups_with_data.add(group)
+            
+            # Track statistics
+            try:
+                current_max = max(recording_values)
+                max_y = max(max_y, current_max)
+                total_recordings += len(recording_values)
+            except (ValueError, TypeError):
+                continue
+            
+            # Get colors
+            color = MATLAB_COLORS.get(div, MATLAB_COLORS['default'])
+            fill_color = MATLAB_FILL_COLORS.get(div, MATLAB_FILL_COLORS['default'])
+            
+            x_base = div_idx + 1
+            
+            # RECORDING-LEVEL SPECIFIC VISUALIZATION
+            # Since we have fewer data points, always show individual points clearly
+            
+            if len(recording_values) == 1:
+                # SINGLE RECORDING: Large, prominent dot
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=16,  # Large for single recording
+                            opacity=0.9,
+                            line=dict(width=3, color='black'),
+                            symbol='star'  # Star for single recording
+                        ),
+                        name=f'DIV {div}',
+                        legendgroup=f'DIV {div}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Single Recording<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add annotation for single recording
+                fig.add_annotation(
+                    x=x_base,
+                    y=recording_values[0] + max_y * 0.03,
+                    text=f'<b>n=1</b>',
+                    showarrow=False,
+                    font=dict(size=12, color='red'),
+                    yshift=20,
+                    row=1, col=col
+                )
+                
+            elif len(recording_values) <= 3:
+                # FEW RECORDINGS: Medium dots with wider spacing
+                jitter = np.random.normal(0, 0.12, size=len(recording_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=14,  # Large for few recordings
+                            opacity=0.9,
+                            line=dict(width=2, color='black'),
+                            symbol='diamond'
+                        ),
+                        name=f'DIV {div}',
+                        legendgroup=f'DIV {div}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Recording %{{pointNumber}}<br>n={len(recording_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add sample size annotation
+                fig.add_annotation(
+                    x=x_base,
+                    y=max(recording_values) + max_y * 0.02,
+                    text=f'<b>n={len(recording_values)}</b>',
+                    showarrow=False,
+                    font=dict(size=11, color='darkblue'),
+                    yshift=15,
+                    row=1, col=col
+                )
+                
+            else:
+                # MULTIPLE RECORDINGS: Standard visualization with violin if enough data
+                jitter = np.random.normal(0, 0.06, size=len(recording_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(
+                            color='black',  # Black dots for visibility
+                            size=8,  # Medium size for multiple recordings
+                            opacity=0.8,
+                            line=dict(width=1, color='black')
+                        ),
+                        name=f'DIV {div}',
+                        legendgroup=f'DIV {div}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Recording %{{pointNumber}}<br>n={len(recording_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add violin only if we have enough recordings (4+)
+                if len(recording_values) >= 4:
+                    try:
+                        kde_data = calculate_half_violin_data(recording_values)
+                        x_data = kde_data.get('x')
+                        if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
+                            if isinstance(x_data, np.ndarray):
+                                x_data = x_data.tolist()
+                            
+                            fig.add_trace(
+                                go.Violin(
+                                    x=[x_base] * len(x_data),
+                                    y=x_data,
+                                    width=0.8,  # Wider for recording-level
+                                    side='both',
+                                    line_color=color,
+                                    fillcolor=fill_color,
+                                    points=False,
+                                    meanline_visible=False,
+                                    showlegend=False,
+                                    hoverinfo='skip'
+                                ),
+                                row=1, col=col
+                            )
+                    except Exception as e:
+                        print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+                
+                # Add sample size annotation
+                fig.add_annotation(
+                    x=x_base,
+                    y=max(recording_values) + max_y * 0.02,
+                    text=f'n={len(recording_values)}',
+                    showarrow=False,
+                    font=dict(size=10, color='gray'),
+                    yshift=10,
+                    row=1, col=col
+                )
+            
+            # Add mean indicator (always visible for recording-level)
+            try:
+                mean_value = np.mean(recording_values)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=[mean_value],
+                        mode='markers',
+                        marker=dict(
+                            color='red',  # Red mean for recording-level
+                            size=10,
+                            opacity=1.0,
+                            line=dict(width=2, color='black'),
+                            symbol='x'  # X symbol for mean
+                        ),
+                        showlegend=False,
+                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(recording_values)} recordings<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+            except Exception as e:
+                print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+    
+    # Add "No Data" annotations for empty groups
+    for col, group in enumerate(filtered_groups, 1):
+        if group not in groups_with_data:
+            y_center = (max_y / 2) if max_y > 0 else 0.5
+            fig.add_annotation(
+                x=1.5,
+                y=y_center,
+                text="<b>No Recordings</b>",
+                showarrow=False,
+                font=dict(size=16, color='lightgray'),
+                row=1, col=col
+            )
+    
+    # Layout with recording-level annotations
+    annotations = []
+    
+    # Add explanation for recording-level analysis
+    annotations.append(
+        dict(
+            text="Recording-Level Analysis: Each point represents one recording (experimental replicate)",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.5, y=1.05,
+            font=dict(size=10, color='blue'),
+            align="center"
+        )
+    )
+    
+    # Add statistical interpretation note
+    annotations.append(
+        dict(
+            text="Statistical Note: Fewer data points = proper experimental replication (recordings are independent)",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.5, y=-0.12,
+            font=dict(size=9, color='gray'),
+            align="center"
+        )
+    )
+    
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        annotations=annotations,
+        margin=dict(b=80, t=120, l=60, r=60)
+    )
+    
+    # Calculate y-axis range (recording-level data may have different ranges)
+    all_values = []
+    for group in plot_data:
+        for div in plot_data[group]:
+            all_values.extend(plot_data[group][div])
+    
+    if len(all_values) > 0:
+        all_values = sorted(all_values)
+        if len(all_values) > 1:
+            p95 = np.percentile(all_values, 95)
+            p5 = np.percentile(all_values, 5)
+            y_max = p95 * 1.2
+            y_min = max(0, p5 * 0.8)
+        else:
+            y_max = max_y * 1.2
+            y_min = 0
+    else:
+        y_max = 1
+        y_min = 0
+    
+    # Update axes
+    for col in range(1, len(filtered_groups) + 1):
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_divs) + 1)),
+            ticktext=[str(div) for div in filtered_divs],
+            title_text="Age" if col == len(filtered_groups)//2 + 1 else "",
+            showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+            linecolor='black', linewidth=1,
+            range=[0.5, len(filtered_divs) + 0.5],
+            row=1, col=col
+        )
+    
+    fig.update_yaxes(
+        title_text=get_metric_label(metric),
+        range=[y_min, y_max],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1,
+        zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+    )
+    
+    print(f"   ✅ Created RECORDING-LEVEL plot: {total_recordings} recordings across {len(filtered_groups)} groups")
+    
+    return fig
+
+
+def create_recording_level_violin_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None):
+    """
+    Create recording-level violin plot organized by age
+    Shows group comparisons within each age, with recording-level data
+    
+    Args:
+        data: Processed data from recording-level metric processors
+        metric: Recording-level metric field name
+        title: Plot title
+        selected_groups: List of groups to include
+        selected_divs: List of DIVs to include
+        
+    Returns:
+        Plotly figure optimized for recording-level data by age
+    """
+    print(f"🎭 Creating RECORDING-LEVEL violin plot by age for {metric}")
+    
+    # Prepare data using by_group structure
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
+        data, metric, selected_groups, selected_divs, 'recordingsbygroup'
+    )
+    
+    # Create subplots - one for each DIV/age
+    fig = make_subplots(
+        rows=1, cols=len(filtered_divs), 
+        subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    max_y = 0
+    total_recordings = 0
+    
+    # For each DIV (age), create a group comparison subplot
+    for col, div in enumerate(filtered_divs, 1):
+        div_has_data = False
+        
+        # Within this DIV, show all groups on X-axis
+        for group_idx, group in enumerate(filtered_groups):
+            if group not in plot_data or div not in plot_data[group]:
+                continue
+                
+            recording_values = plot_data[group][div]
+            if not isinstance(recording_values, list) or len(recording_values) == 0:
+                continue
+            
+            div_has_data = True
+            
+            # Track statistics
+            try:
+                current_max = max(recording_values)
+                max_y = max(max_y, current_max)
+                total_recordings += len(recording_values)
+            except (ValueError, TypeError):
+                continue
+            
+            # Get colors - use group-specific colors
+            color = MATLAB_COLORS.get(group, MATLAB_COLORS['default'])
+            fill_color = MATLAB_FILL_COLORS.get(group, MATLAB_FILL_COLORS['default'])
+            
+            x_base = group_idx + 1
+            
+            # Recording-level visualization (similar to by_group but arranged by age)
+            if len(recording_values) == 1:
+                # Single recording
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=16,
+                            opacity=0.9,
+                            line=dict(width=3, color='black'),
+                            symbol='star'
+                        ),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Single Recording<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+            elif len(recording_values) <= 3:
+                # Few recordings
+                jitter = np.random.normal(0, 0.12, size=len(recording_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(
+                            color=color,
+                            size=14,
+                            opacity=0.9,
+                            line=dict(width=2, color='black'),
+                            symbol='diamond'
+                        ),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(recording_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+            else:
+                # Multiple recordings
+                jitter = np.random.normal(0, 0.06, size=len(recording_values))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base + j for j in jitter],
+                        y=recording_values,
+                        mode='markers',
+                        marker=dict(color='black', size=8, opacity=0.8),
+                        name=f'{group}',
+                        legendgroup=f'{group}',
+                        showlegend=(col == 1),
+                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(recording_values)}<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # Add violin if enough data
+                if len(recording_values) >= 4:
+                    try:
+                        kde_data = calculate_half_violin_data(recording_values)
+                        x_data = kde_data.get('x')
+                        if x_data is not None and len(x_data) > 0:
+                            if isinstance(x_data, np.ndarray):
+                                x_data = x_data.tolist()
+                            
+                            fig.add_trace(
+                                go.Violin(
+                                    x=[x_base] * len(x_data),
+                                    y=x_data,
+                                    width=0.8,
+                                    side='both',
+                                    line_color=color,
+                                    fillcolor=fill_color,
+                                    points=False,
+                                    meanline_visible=False,
+                                    showlegend=False,
+                                    hoverinfo='skip'
+                                ),
+                                row=1, col=col
+                            )
+                    except Exception as e:
+                        print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+            
+            # Add mean indicator
+            try:
+                mean_value = np.mean(recording_values)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=[mean_value],
+                        mode='markers',
+                        marker=dict(
+                            color='red',
+                            size=10,
+                            opacity=1.0,
+                            line=dict(width=2, color='black'),
+                            symbol='x'
+                        ),
+                        showlegend=False,
+                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(recording_values)} recordings<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+            except Exception as e:
+                print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+        
+        # Update x-axis for this subplot
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_groups) + 1)),
+            ticktext=filtered_groups,
+            title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
+            showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+            linecolor='black', linewidth=1,
+            range=[0.5, len(filtered_groups) + 0.5],
+            row=1, col=col
+        )
+        
+        # Add "No Data" annotation for empty age subplots
+        if not div_has_data:
+            y_center = (max_y / 2) if max_y > 0 else 0.5
+            fig.add_annotation(
+                x=len(filtered_groups) / 2 + 0.5,
+                y=y_center,
+                text="<b>No Recordings</b>",
+                showarrow=False,
+                font=dict(size=16, color='lightgray'),
+                row=1, col=col
+            )
+    
+    # Layout with recording-level annotations
+    annotations = []
+    
+    annotations.append(
+        dict(
+            text="Recording-Level by Age: Group comparisons within each age (each point = one recording)",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.5, y=1.05,
+            font=dict(size=10, color='blue'),
+            align="center"
+        )
+    )
+    
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        annotations=annotations,
+        margin=dict(b=60, t=120, l=60, r=60)
+    )
+    
+    # Calculate y-axis range
+    all_values = []
+    for group in plot_data:
+        for div in plot_data[group]:
+            all_values.extend(plot_data[group][div])
+    
+    if len(all_values) > 0:
+        all_values = sorted(all_values)
+        if len(all_values) > 1:
+            p95 = np.percentile(all_values, 95)
+            p5 = np.percentile(all_values, 5)
+            y_max = p95 * 1.2
+            y_min = max(0, p5 * 0.8)
+        else:
+            y_max = max_y * 1.2
+            y_min = 0
+    else:
+        y_max = 1
+        y_min = 0
+    
+    # Update y-axis
+    fig.update_yaxes(
+        title_text=f"<b>{get_metric_label(metric)}</b>",
+        range=[y_min, y_max],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1,
+        zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+    )
+    
+    print(f"   ✅ Created RECORDING-LEVEL by age plot: {total_recordings} recordings across {len(filtered_divs)} age subplots")
+    
+    return fig
+
+def create_half_violin_plot_by_group_recording_level(data, metric, title, selected_groups=None, selected_divs=None):
+    """
+    Wrapper function for recording-level by group plots
+    """
+    return create_recording_level_violin_plot_by_group(data, metric, title, selected_groups, selected_divs)
+
+
+def create_half_violin_plot_by_age_recording_level(data, metric, title, selected_groups=None, selected_divs=None):
+    """
+    Wrapper function for recording-level by age plots
+    """
+    return create_recording_level_violin_plot_by_age(data, metric, title, selected_groups, selected_divs)
