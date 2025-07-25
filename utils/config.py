@@ -399,3 +399,95 @@ METRIC_TITLES_ENHANCED = {
     'FRmean': 'Mean Firing Rate',
     'FRmedian': 'Median Firing Rate'
 }
+
+def generate_viridis_colors(n_divs):
+    """Generate viridis colormap for age-based coloring (flipped like MEA-NAP)"""
+    viridis_base = [
+        [0.267004, 0.004874, 0.329415],  # Dark purple
+        [0.229739, 0.322361, 0.545706],  # Blue-purple  
+        [0.127568, 0.566949, 0.550556],  # Teal
+        [0.369214, 0.788888, 0.382914],  # Green
+        [0.993248, 0.906157, 0.143936]   # Yellow
+    ]
+    
+    if n_divs <= len(viridis_base):
+        selected_colors = viridis_base[:n_divs]
+        flipped_colors = selected_colors[::-1]  # Flip like MEA-NAP
+    else:
+        flipped_colors = viridis_base[::-1]
+    
+    # Convert to hex colors
+    hex_colors = []
+    for rgb in flipped_colors:
+        hex_color = '#{:02x}{:02x}{:02x}'.format(
+            int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
+        )
+        hex_colors.append(hex_color)
+    
+    return hex_colors
+
+def generate_group_colors(groups):
+    """Generate group-based colors following MEA-NAP methodology"""
+    standard_group_colors = {
+        'WT': '#1f77b4',      'Control': '#1f77b4',  'MUT': '#ff7f0e',     
+        'KO': '#d62728',      'TG': '#9467bd',       'WM5050A': '#2ca02c', 
+        'WM8020A': '#8c564b', 'WM9505A': '#e377c2',  'WM5050': '#7f7f7f',
+    }
+    
+    default_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                     '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    
+    group_color_map = {}
+    for i, group in enumerate(groups):
+        if group in standard_group_colors:
+            group_color_map[group] = standard_group_colors[group]
+        else:
+            group_color_map[group] = default_colors[i % len(default_colors)]
+    
+    return group_color_map
+
+def get_mea_nap_colors(neuronal_data, plot_type):
+    """Get MEA-NAP standard colors based on plot type"""
+    
+    if 'bygroup' in plot_type.lower():
+        # X-axis shows ages → use age-based colors (viridis)
+        available_divs = sorted(neuronal_data.get('divs', []))
+        age_colors = generate_viridis_colors(len(available_divs))
+        
+        color_map = {}
+        fill_color_map = {}
+        for i, div in enumerate(available_divs):
+            color_map[div] = age_colors[i]
+            # Convert to rgba with transparency
+            hex_color = age_colors[i].lstrip('#')
+            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            fill_color_map[div] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
+        
+        return {'line_colors': color_map, 'fill_colors': fill_color_map}
+    
+    elif 'byage' in plot_type.lower():
+        # X-axis shows groups → use group-based colors
+        available_groups = neuronal_data.get('groups', [])
+        group_color_map = generate_group_colors(available_groups)
+        
+        fill_color_map = {}
+        for group, color in group_color_map.items():
+            hex_color = color.lstrip('#')
+            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            fill_color_map[group] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
+        
+        return {'line_colors': group_color_map, 'fill_colors': fill_color_map}
+    
+    else:
+        # Fallback to current system
+        return {'line_colors': MATLAB_COLORS, 'fill_colors': MATLAB_FILL_COLORS}
+
+def get_plot_color(plot_type, neuronal_data, key):
+    """Get the appropriate color for a plot element"""
+    colors = get_mea_nap_colors(neuronal_data, plot_type)
+    return colors['line_colors'].get(key, '#1f77b4')
+
+def get_plot_fill_color(plot_type, neuronal_data, key):
+    """Get the appropriate fill color for a plot element"""
+    colors = get_mea_nap_colors(neuronal_data, plot_type)
+    return colors['fill_colors'].get(key, 'rgba(31, 119, 180, 0.6)')
