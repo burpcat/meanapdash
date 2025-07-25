@@ -714,3 +714,201 @@ def load_neuronal_activity_from_experiment_files(base_folder: str) -> Dict:
     except Exception as e:
         print(f"❌ Error loading neuronal activity: {e}")
         raise
+
+def extract_recording_level_metrics(experiment_data):
+    """
+    Extract recording-level metrics from experiment data
+    
+    Args:
+        experiment_data: Either raw MATLAB data or processed dashboard data
+    """
+    
+    # Check if we have raw MATLAB data or processed data
+    if 'Ephys' in experiment_data:
+        # Raw MATLAB data
+        ephys = experiment_data['Ephys']
+        activity_data = None
+    elif 'activity' in experiment_data:
+        # Processed dashboard data
+        ephys = None
+        activity_data = experiment_data['activity']
+    else:
+        print("❌ No recognizable data structure found")
+        return {}
+    
+    recording_metrics = {}
+    
+    # BASIC FIRING RATE METRICS
+    basic_fr_metrics = {
+        'numActiveElec': 'Number of active electrodes',
+        'FRmean': 'Mean firing rate',
+        'FRmedian': 'Median firing rate', 
+        'FRstd': 'Standard deviation of firing rate',
+        'FRsem': 'Standard error of firing rate',
+        'FRiqr': 'Interquartile range of firing rate'
+    }
+    
+    for metric, description in basic_fr_metrics.items():
+        try:
+            if ephys and metric in ephys:
+                # Extract from raw MATLAB data
+                value = ephys[metric][0][0][0][0]
+                recording_metrics[metric] = float(value)
+            elif activity_data and metric in activity_data:
+                # Extract from processed data
+                value = activity_data[metric]
+                if isinstance(value, (list, np.ndarray)):
+                    recording_metrics[metric] = float(value[0]) if len(value) > 0 else np.nan
+                else:
+                    recording_metrics[metric] = float(value)
+            else:
+                # Calculate from electrode-level data
+                recording_metrics[metric] = calculate_missing_basic_metric(experiment_data, metric)
+        except Exception as e:
+            print(f"Error processing {metric}: {e}")
+            recording_metrics[metric] = np.nan
+    
+    # NETWORK BURST METRICS
+    network_metrics = {
+        'NBurstRate': 'Network burst rate',
+        'meanNumChansInvolvedInNbursts': 'Mean channels in network bursts',
+        'meanNBstLengthS': 'Mean network burst length (seconds)',
+        'meanISIWithinNbursts_ms': 'Mean ISI within network bursts',
+        'meanISIoutsideNbursts_ms': 'Mean ISI outside network bursts',
+        'CVofINBI': 'CV of inter-network-burst intervals',
+        'fracInNburst': 'Fraction of spikes in network bursts',
+        'numNbursts': 'Number of network bursts'
+    }
+    
+    for metric, description in network_metrics.items():
+        try:
+            if ephys and metric in ephys:
+                # Extract from raw MATLAB data
+                value = ephys[metric][0][0][0][0]
+                recording_metrics[metric] = float(value)
+            elif activity_data and metric in activity_data:
+                # Extract from processed data
+                value = activity_data[metric]
+                if isinstance(value, (list, np.ndarray)):
+                    recording_metrics[metric] = float(value[0]) if len(value) > 0 else np.nan
+                else:
+                    recording_metrics[metric] = float(value)
+            else:
+                # Network metrics expected to be missing with conservative settings
+                recording_metrics[metric] = np.nan
+        except Exception as e:
+            recording_metrics[metric] = np.nan
+    
+    # CHANNEL AVERAGE METRICS (calculate from electrode-level data)
+    channel_avg_metrics = {
+        'channelAveBurstRate': ('channelBurstRate', 'Average channel burst rate'),
+        'channelAveBurstDur': ('channelBurstDur', 'Average channel burst duration'),
+        'channelAveISIwithinBurst': ('channelISIwithinBurst', 'Average ISI within bursts'),
+        'channelAveISIoutsideBurst': ('channeISIoutsideBurst', 'Average ISI outside bursts'),
+        'channelAveFracSpikesInBursts': ('channelFracSpikesInBursts', 'Average fraction spikes in bursts')
+    }
+    
+    for avg_metric, (electrode_metric, description) in channel_avg_metrics.items():
+        try:
+            # Try to get from activity data first
+            if activity_data and electrode_metric in activity_data:
+                electrode_values = activity_data[electrode_metric]
+                if isinstance(electrode_values, (list, np.ndarray)):
+                    valid_values = np.array(electrode_values)
+                    valid_values = valid_values[~np.isnan(valid_values)]
+                    
+                    if electrode_metric in ['channelBurstRate', 'channelBurstDur', 'channelFracSpikesInBursts']:
+                        valid_values = valid_values[valid_values >= 0]
+                    elif electrode_metric in ['channelISIwithinBurst', 'channeISIoutsideBurst']:
+                        valid_values = valid_values[valid_values > 0]
+                    
+                    recording_metrics[avg_metric] = np.mean(valid_values) if len(valid_values) > 0 else np.nan
+                else:
+                    recording_metrics[avg_metric] = np.nan
+            else:
+                recording_metrics[avg_metric] = np.nan
+        except Exception as e:
+            recording_metrics[avg_metric] = np.nan
+    
+    # Handle "singleElec" aliases
+    alias_mapping = {
+        'singleElecBurstRate': 'channelAveBurstRate',
+        'singleElecBurstDur': 'channelAveBurstDur',
+        'singleElecISIwithinBurst': 'channelAveISIwithinBurst',
+        'singleElecISIoutsideBurst': 'channelAveISIoutsideBurst',
+        'meanFracSpikesInBurstsPerElec': 'channelAveFracSpikesInBursts'
+    }
+    
+    for alias, original in alias_mapping.items():
+        if original in recording_metrics:
+            recording_metrics[alias] = recording_metrics[original]
+    
+    return recording_metrics
+
+def calculate_missing_basic_metric(experiment_data, metric):
+    """Calculate basic metrics from electrode-level data if missing"""
+    try:
+        # Try to get FR data from different possible locations
+        fr_array = None
+        
+        if 'Ephys' in experiment_data and 'FR' in experiment_data['Ephys']:
+            fr_array = experiment_data['Ephys']['FR'][0][0]
+        elif 'activity' in experiment_data and 'FR' in experiment_data['activity']:
+            fr_array = experiment_data['activity']['FR']
+        
+        if fr_array is not None:
+            valid_fr = np.array(fr_array)
+            valid_fr = valid_fr[~np.isnan(valid_fr) & (valid_fr >= 0)]
+            
+            if metric == 'FRmean':
+                return np.mean(valid_fr) if len(valid_fr) > 0 else np.nan
+            elif metric == 'FRmedian':
+                return np.median(valid_fr) if len(valid_fr) > 0 else np.nan
+            elif metric == 'FRstd':
+                return np.std(valid_fr) if len(valid_fr) > 0 else np.nan
+            elif metric == 'FRsem':
+                return np.std(valid_fr) / np.sqrt(len(valid_fr)) if len(valid_fr) > 0 else np.nan
+            elif metric == 'FRiqr':
+                return np.percentile(valid_fr, 75) - np.percentile(valid_fr, 25) if len(valid_fr) > 0 else np.nan
+            elif metric == 'numActiveElec':
+                return int(np.sum(valid_fr > 0.01))  # Use your active threshold
+        
+        return np.nan
+    except Exception as e:
+        print(f"Error calculating {metric}: {e}")
+        return np.nan
+
+def calculate_missing_basic_metric(experiment_data, metric):
+    """Calculate basic metrics from electrode-level data if missing"""
+    try:
+        fr_array = experiment_data['Ephys']['FR'][0][0]
+        valid_fr = fr_array[~np.isnan(fr_array) & (fr_array >= 0)]
+        
+        if metric == 'FRmean':
+            return np.mean(valid_fr) if len(valid_fr) > 0 else np.nan
+        elif metric == 'FRmedian':
+            return np.median(valid_fr) if len(valid_fr) > 0 else np.nan
+        elif metric == 'FRstd':
+            return np.std(valid_fr) if len(valid_fr) > 0 else np.nan
+        elif metric == 'FRsem':
+            return np.std(valid_fr) / np.sqrt(len(valid_fr)) if len(valid_fr) > 0 else np.nan
+        elif metric == 'FRiqr':
+            return np.percentile(valid_fr, 75) - np.percentile(valid_fr, 25) if len(valid_fr) > 0 else np.nan
+        elif metric == 'numActiveElec':
+            return int(np.sum(valid_fr > 0.01))  # Use your active threshold
+        else:
+            return np.nan
+    except:
+        return np.nan
+    
+def add_recording_metrics_to_experiments(neuronal_data):
+    """
+    Add recording-level metrics to all experiments
+    """
+    print("📋 Extracting recording-level metrics...")
+    
+    for exp_name, exp_data in neuronal_data['by_experiment'].items():
+        print(f"Processing recording metrics for {exp_name}")
+        exp_data['recording_metrics'] = extract_recording_level_metrics(exp_data)
+    
+    return neuronal_data

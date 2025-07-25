@@ -9,12 +9,12 @@ from flask import Flask
 from components.layout import create_layout
 import numpy as np
 
-# UPDATED IMPORTS - Using ExperimentMatFiles loader
 from data_processing.experiment_mat_loader import (
     scan_experiment_mat_folder, 
     load_neuronal_activity_from_experiment_files,
     load_all_experiment_data,
-    convert_to_dashboard_format
+    convert_to_dashboard_format,
+    add_recording_metrics_to_experiments
 )
 
 # UTILS PACKAGE IMPORTS - New centralized approach
@@ -157,6 +157,10 @@ def load_data_dynamically(n_clicks, data_dir):
         # Step 2: Load neuronal activity data
         print("📊 Loading neuronal activity data...")
         neuronal_data = load_neuronal_activity_from_experiment_files(data_dir)
+        
+        # Step 2.5: Extract recording-level metrics
+        print("📋 Extracting recording-level metrics...")
+        neuronal_data = add_recording_metrics_to_experiments(neuronal_data)
         
         # Step 3: Initialize network and cartography data (empty for now)
         print("🌐 Initializing network data structures...")

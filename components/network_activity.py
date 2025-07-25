@@ -101,7 +101,7 @@ def create_enhanced_network_half_violin_plot_by_group(data, metric, lag, title, 
                 # No experiment names - use all values (fallback)
                 div_values = filtered_values
             
-            if not div_values:
+            if len(div_values) == 0:
                 continue
             
             # Update y-axis range
@@ -376,11 +376,11 @@ def create_enhanced_metrics_by_lag_plot(data, group, metric):
                             if exp_idx < len(lag_data[metric]):
                                 div_values.append(lag_data[metric][exp_idx])
                     
-                    if div_values:
+                    if len(div_values) > 0:
                         # Filter out NaN values
                         div_values = [v for v in div_values if v is not None and np.isfinite(v)]
                         
-                        if div_values:
+                        if len(div_values) > 0:
                             x_values.append(lag)
                             y_values.append(np.mean(div_values))
                             y_errors.append(np.std(div_values) / np.sqrt(len(div_values)))  # SEM

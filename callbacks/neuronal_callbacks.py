@@ -14,7 +14,11 @@ from utils import (
 from components.neuronal_activity import (
     create_half_violin_plot_by_group,
     create_half_violin_plot_by_age,
-    analyze_burst_data_distribution
+    analyze_burst_data_distribution,
+    create_recording_level_violin_plot_by_group,
+    create_recording_level_violin_plot_by_age,
+    create_half_violin_plot_by_age_recording_level,
+    create_half_violin_plot_by_group_recording_level    
 )
 
 def register_neuronal_callbacks(app):
@@ -38,10 +42,14 @@ def register_neuronal_callbacks(app):
         field_name = get_metric_field_name(metric)
         
         # Route to appropriate visualization function
-        if comparison in ['nodebygroup', 'recordingsbygroup']:
+        if comparison == 'nodebygroup':
             return create_half_violin_plot_by_group(processed_data, field_name, title, groups, selected_divs)
-        elif comparison in ['nodebyage', 'recordingsbyage']:
+        elif comparison == 'nodebyage':
             return create_half_violin_plot_by_age(processed_data, field_name, title, groups, selected_divs)
+        elif comparison == 'recordingsbygroup':
+            return create_half_violin_plot_by_group_recording_level(processed_data, field_name, title, groups, selected_divs)
+        elif comparison == 'recordingsbyage':
+            return create_half_violin_plot_by_age_recording_level(processed_data, field_name, title, groups, selected_divs)
         else:
             return create_error_plot(f"Unknown comparison type: {comparison}")
     

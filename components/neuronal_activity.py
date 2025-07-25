@@ -150,8 +150,296 @@ def get_metric_label(metric):
 # PLOT TYPE FUNCTIONS - Individual plot creators
 # =============================================================================
 
+# def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metric, title):
+#     """Create violin plot that properly handles sparse data and displays graphs correctly"""
+    
+#     fig = make_subplots(
+#         rows=1, cols=len(filtered_groups), 
+#         subplot_titles=[f'<b>{g}</b>' for g in filtered_groups],
+#         shared_yaxes=True,
+#         horizontal_spacing=0.08
+#     )
+    
+#     max_y = 0
+#     is_sparse_metric_flag = is_sparse_metric(metric)
+#     total_data_points = 0
+    
+#     # Track which groups have data for empty group handling
+#     groups_with_data = set()
+    
+#     for col, group in enumerate(filtered_groups, 1):
+#         group_has_data = False
+        
+#         if group not in plot_data:
+#             continue
+            
+#         for div_idx, div in enumerate(filtered_divs):
+#             if div not in plot_data[group]:
+#                 continue
+                
+#             div_values = plot_data[group][div]
+#             # FIXED: Handle empty data properly
+#             if not isinstance(div_values, list) or len(div_values) == 0:
+#                 continue
+            
+#             # Mark this group as having data
+#             group_has_data = True
+#             groups_with_data.add(group)
+            
+#             # FIXED: Safe max calculation
+#             try:
+#                 current_max = max(div_values)
+#                 max_y = max(max_y, current_max)
+#                 total_data_points += len(div_values)
+#             except (ValueError, TypeError):
+#                 continue
+            
+#             # Get colors
+#             color = MATLAB_COLORS.get(div, MATLAB_COLORS['default'])
+#             fill_color = MATLAB_FILL_COLORS.get(div, MATLAB_FILL_COLORS['default'])
+            
+#             x_base = div_idx + 1
+            
+#             # ENHANCED SPARSE DATA HANDLING
+#             if len(div_values) <= 2:
+#                 # VERY SPARSE: Large, prominent dots
+#                 jitter = np.random.normal(0, 0.08, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(
+#                             color=color,
+#                             size=12,  # Large dots
+#                             opacity=0.9,
+#                             line=dict(width=3, color='black'),
+#                             symbol='diamond'  # Diamond shape for visibility
+#                         ),
+#                         name=f'DIV {div}',
+#                         legendgroup=f'DIV {div}',
+#                         showlegend=(col == 1),
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
+                
+#                 # Add sample size annotation
+#                 fig.add_annotation(
+#                     x=x_base,
+#                     y=max(div_values) + max_y * 0.02,
+#                     text=f'<b>n={len(div_values)}</b>',
+#                     showarrow=False,
+#                     font=dict(size=11, color='darkred'),
+#                     yshift=15,
+#                     row=1, col=col
+#                 )
+                
+#             elif len(div_values) <= 5:
+#                 # SPARSE: Medium dots with more spacing
+#                 jitter = np.random.normal(0, 0.06, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(
+#                             color=color,
+#                             size=10,  # Medium dots
+#                             opacity=0.8,
+#                             line=dict(width=2, color='black'),
+#                             symbol='circle'
+#                         ),
+#                         name=f'DIV {div}',
+#                         legendgroup=f'DIV {div}',
+#                         showlegend=(col == 1),
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
+                
+#                 # Add sample size annotation
+#                 fig.add_annotation(
+#                     x=x_base,
+#                     y=max(div_values) + max_y * 0.02,
+#                     text=f'n={len(div_values)}',
+#                     showarrow=False,
+#                     font=dict(size=10, color='gray'),
+#                     yshift=12,
+#                     row=1, col=col
+#                 )
+            
+#             else:
+#                 # NORMAL DATA: Standard visualization with individual points
+#                 jitter = np.random.normal(0, 0.04, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(color='black', size=4, opacity=0.6),
+#                         name=f'DIV {div}',
+#                         legendgroup=f'DIV {div}',
+#                         showlegend=(col == 1),
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
+                
+#                 # Add violin for rich data
+#                 if len(div_values) >= 4:
+#                     try:
+#                         kde_data = calculate_half_violin_data(div_values)
+#                         x_data = kde_data.get('x')
+#                         if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
+#                             if isinstance(x_data, np.ndarray):
+#                                 x_data = x_data.tolist()
+                            
+#                             fig.add_trace(
+#                                 go.Violin(
+#                                     x=[x_base] * len(x_data),
+#                                     y=x_data,
+#                                     width=0.6,
+#                                     side='both',
+#                                     line_color=color,
+#                                     fillcolor=fill_color,
+#                                     points=False,
+#                                     meanline_visible=False,
+#                                     showlegend=False,
+#                                     hoverinfo='skip'
+#                                 ),
+#                                 row=1, col=col
+#                             )
+#                     except Exception as e:
+#                         print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+            
+#             # Add mean indicator (always visible)
+#             try:
+#                 mean_value = np.mean(div_values)
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base],
+#                         y=[mean_value],
+#                         mode='markers',
+#                         marker=dict(
+#                             color='white',  # White center
+#                             size=8 if len(div_values) <= 5 else 6,
+#                             opacity=1.0,
+#                             line=dict(width=2, color='black')  # Black outline
+#                         ),
+#                         showlegend=False,
+#                         hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
+#             except Exception as e:
+#                 print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+    
+#     # NEW: Add "No Data" annotations for empty groups
+#     for col, group in enumerate(filtered_groups, 1):
+#         if group not in groups_with_data:
+#             # Calculate y position for "No Data" text
+#             y_center = (max_y / 2) if max_y > 0 else 0.5
+            
+#             fig.add_annotation(
+#                 x=1.5,  # Center between DIV positions
+#                 y=y_center,
+#                 text="<b>No Data</b>",
+#                 showarrow=False,
+#                 font=dict(size=16, color='lightgray'),
+#                 row=1, col=col
+#             )
+    
+#     # FIXED: Better layout with proper spacing and titles
+#     annotations = []
+#     if is_sparse_metric_flag and total_data_points > 0:
+#         annotations.append(
+#             dict(
+#                 text="Note: Sparse data is expected for burst metrics due to conservative detection settings",
+#                 showarrow=False,
+#                 xref="paper", yref="paper",
+#                 x=0.5, y=-0.15,
+#                 font=dict(size=10, color='gray'),
+#                 align="center"
+#             )
+#         )
+    
+#     fig.update_layout(
+#         title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+#         height=500,
+#         plot_bgcolor='white',
+#         paper_bgcolor='white',
+#         font=dict(family='Arial', size=12, color='black'),
+#         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+#         annotations=annotations,
+#         margin=dict(b=100 if is_sparse_metric_flag else 60, t=100, l=60, r=60)  # INCREASED top margin for titles
+#     )
+    
+#     # FIXED: Better axis handling with outlier detection
+#     # Collect all values to detect outliers
+#     all_values = []
+#     for group in plot_data:
+#         for div in plot_data[group]:
+#             all_values.extend(plot_data[group][div])
+    
+#     # Calculate reasonable y-axis range (exclude extreme outliers)
+#     if len(all_values) > 0:
+#         all_values = sorted(all_values)
+#         if len(all_values) > 2:
+#             # Use 95th percentile as max to handle outliers
+#             p95 = np.percentile(all_values, 95)
+#             p5 = np.percentile(all_values, 5)
+#             y_max = p95 * 1.2
+#             y_min = max(0, p5 * 0.8)
+#         else:
+#             y_max = max_y * 1.15
+#             y_min = 0
+#     else:
+#         y_max = 1
+#         y_min = 0
+    
+#     for col in range(1, len(filtered_groups) + 1):
+#         fig.update_xaxes(
+#             tickvals=list(range(1, len(filtered_divs) + 1)),
+#             ticktext=[str(div) for div in filtered_divs],
+#             title_text="Age" if col == len(filtered_groups)//2 + 1 else "",
+#             showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+#             linecolor='black', linewidth=1,
+#             range=[0.5, len(filtered_divs) + 0.5],
+#             row=1, col=col
+#         )
+    
+#     fig.update_yaxes(
+#         title_text=get_metric_label(metric),
+#         range=[y_min, y_max],
+#         showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+#         linecolor='black', linewidth=1,
+#         zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+#     )
+    
+#     # Add outlier warning if needed
+#     if len(all_values) > 0 and max_y > y_max:
+#         outlier_count = len([v for v in all_values if v > y_max])
+#         fig.add_annotation(
+#             text=f"⚠️ {outlier_count} extreme outlier(s) excluded from y-axis scale",
+#             showarrow=False,
+#             xref="paper", yref="paper",
+#             x=0.02, y=0.98,
+#             font=dict(size=9, color='orange'),
+#             align="left"
+#         )
+    
+#     return fig
+
 def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metric, title):
-    """Create violin plot that properly handles sparse data and displays graphs correctly"""
+    """
+    FIXED: Create violin plot that matches MEA-NAP behavior - ALWAYS shows violin plots
+    
+    Key Changes:
+    - Removed sparse data fallback to scatter plots
+    - Always show violin plots like MEA-NAP (even for small datasets)
+    - Implement MEA-NAP's exact half-violin specification
+    """
     
     fig = make_subplots(
         rows=1, cols=len(filtered_groups), 
@@ -161,10 +449,7 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
     )
     
     max_y = 0
-    is_sparse_metric_flag = is_sparse_metric(metric)
     total_data_points = 0
-    
-    # Track which groups have data for empty group handling
     groups_with_data = set()
     
     for col, group in enumerate(filtered_groups, 1):
@@ -178,15 +463,15 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
                 continue
                 
             div_values = plot_data[group][div]
-            # FIXED: Handle empty data properly
+            
+            # Handle empty data
             if not isinstance(div_values, list) or len(div_values) == 0:
                 continue
             
-            # Mark this group as having data
             group_has_data = True
             groups_with_data.add(group)
             
-            # FIXED: Safe max calculation
+            # Track statistics
             try:
                 current_max = max(div_values)
                 max_y = max(max_y, current_max)
@@ -200,120 +485,72 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
             
             x_base = div_idx + 1
             
-            # ENHANCED SPARSE DATA HANDLING
-            if len(div_values) <= 2:
-                # VERY SPARSE: Large, prominent dots
-                jitter = np.random.normal(0, 0.08, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(
-                            color=color,
-                            size=12,  # Large dots
-                            opacity=0.9,
-                            line=dict(width=3, color='black'),
-                            symbol='diamond'  # Diamond shape for visibility
-                        ),
-                        name=f'DIV {div}',
-                        legendgroup=f'DIV {div}',
-                        showlegend=(col == 1),
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
-                
-                # Add sample size annotation
-                fig.add_annotation(
-                    x=x_base,
-                    y=max(div_values) + max_y * 0.02,
-                    text=f'<b>n={len(div_values)}</b>',
-                    showarrow=False,
-                    font=dict(size=11, color='darkred'),
-                    yshift=15,
-                    row=1, col=col
-                )
-                
-            elif len(div_values) <= 5:
-                # SPARSE: Medium dots with more spacing
-                jitter = np.random.normal(0, 0.06, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(
-                            color=color,
-                            size=10,  # Medium dots
-                            opacity=0.8,
-                            line=dict(width=2, color='black'),
-                            symbol='circle'
-                        ),
-                        name=f'DIV {div}',
-                        legendgroup=f'DIV {div}',
-                        showlegend=(col == 1),
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
-                
-                # Add sample size annotation
-                fig.add_annotation(
-                    x=x_base,
-                    y=max(div_values) + max_y * 0.02,
-                    text=f'n={len(div_values)}',
-                    showarrow=False,
-                    font=dict(size=10, color='gray'),
-                    yshift=12,
-                    row=1, col=col
-                )
+            # MEA-NAP APPROACH: ALWAYS SHOW VIOLIN + INDIVIDUAL POINTS
+            # No fallback to scatter-only mode regardless of data size
             
-            else:
-                # NORMAL DATA: Standard visualization with individual points
-                jitter = np.random.normal(0, 0.04, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(color='black', size=4, opacity=0.6),
-                        name=f'DIV {div}',
-                        legendgroup=f'DIV {div}',
-                        showlegend=(col == 1),
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
-                
-                # Add violin for rich data
-                if len(div_values) >= 4:
-                    try:
-                        kde_data = calculate_half_violin_data(div_values)
-                        x_data = kde_data.get('x')
-                        if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
-                            if isinstance(x_data, np.ndarray):
-                                x_data = x_data.tolist()
-                            
-                            fig.add_trace(
-                                go.Violin(
-                                    x=[x_base] * len(x_data),
-                                    y=x_data,
-                                    width=0.6,
-                                    side='both',
-                                    line_color=color,
-                                    fillcolor=fill_color,
-                                    points=False,
-                                    meanline_visible=False,
-                                    showlegend=False,
-                                    hoverinfo='skip'
-                                ),
-                                row=1, col=col
-                            )
-                    except Exception as e:
-                        print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+            # 1. INDIVIDUAL DATA POINTS (LEFT side with jitter)
+            jitter_width = 0.15
+            jitter = np.random.uniform(-jitter_width, 0, size=len(div_values))  # LEFT side only
             
-            # Add mean indicator (always visible)
+            fig.add_trace(
+                go.Scatter(
+                    x=[x_base + j for j in jitter],
+                    y=div_values,
+                    mode='markers',
+                    marker=dict(
+                        color=color,
+                        size=6,  # MEA-NAP size: 20 points scaled down for Plotly
+                        opacity=0.8,
+                        line=dict(width=1, color='black')
+                    ),
+                    name=f'DIV {div}',
+                    legendgroup=f'DIV {div}',
+                    showlegend=(col == 1),
+                    hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Electrode %{{pointNumber}}<br>n={len(div_values)}<extra></extra>'
+                ),
+                row=1, col=col
+            )
+            
+            # 2. HALF VIOLIN PLOT (RIGHT side) - ALWAYS SHOWN like MEA-NAP
+            if len(div_values) >= 2:  # MEA-NAP minimum: n > 1
+                try:
+                    # Use our existing KDE calculation but improve it
+                    kde_data = calculate_half_violin_data(div_values)
+                    x_data = kde_data.get('x')
+                    y_data = kde_data.get('y')
+                    
+                    if x_data is not None and y_data is not None and len(x_data) > 0:
+                        if isinstance(x_data, np.ndarray):
+                            x_data = x_data.tolist()
+                        if isinstance(y_data, np.ndarray):
+                            y_data = y_data.tolist()
+                        
+                        # MEA-NAP specification: violin on RIGHT side of x-axis center
+                        violin_width = 0.3
+                        max_density = max(y_data) if len(y_data) > 0 else 1
+                        scaled_density = [(d / max_density) * violin_width for d in y_data]
+                        violin_x = [x_base + 0.1 + d for d in scaled_density]  # RIGHT side: +0.1 offset
+                        
+                        # Create filled violin shape
+                        fig.add_trace(
+                            go.Scatter(
+                                x=violin_x + [x_base + 0.1] * len(violin_x),  # Close the shape
+                                y=x_data + x_data[::-1],  # Mirror for closing
+                                fill='toself',
+                                fillcolor=fill_color,
+                                line=dict(color=color, width=1),
+                                mode='lines',
+                                showlegend=False,
+                                hoverinfo='skip'
+                            ),
+                            row=1, col=col
+                        )
+                
+                except Exception as e:
+                    print(f"⚠️ Violin plot failed for {group} DIV {div} (n={len(div_values)}): {e}")
+                    # Continue without violin - individual points still shown
+            
+            # 3. MEAN INDICATOR (CENTER) - MEA-NAP specification
             try:
                 mean_value = np.mean(div_values)
                 fig.add_trace(
@@ -322,27 +559,41 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
                         y=[mean_value],
                         mode='markers',
                         marker=dict(
-                            color='white',  # White center
-                            size=8 if len(div_values) <= 5 else 6,
+                            color='black',  # MEA-NAP: pure black
+                            size=12,  # MEA-NAP: size 100 scaled down for Plotly
                             opacity=1.0,
-                            line=dict(width=2, color='black')  # Black outline
+                            line=dict(width=2, color='black')
                         ),
                         showlegend=False,
-                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)}<extra></extra>'
+                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)} electrodes<extra></extra>'
                     ),
                     row=1, col=col
                 )
+                
+                # 4. ERROR BARS (SEM, not std) - MEA-NAP specification
+                if len(div_values) > 1:
+                    sem_value = np.std(div_values) / np.sqrt(len(div_values))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x_base, x_base],
+                            y=[mean_value - sem_value, mean_value + sem_value],
+                            mode='lines',
+                            line=dict(color='black', width=3),  # MEA-NAP: 3px width
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ),
+                        row=1, col=col
+                    )
+                
             except Exception as e:
                 print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
     
-    # NEW: Add "No Data" annotations for empty groups
+    # Add "No Data" annotations for completely empty groups
     for col, group in enumerate(filtered_groups, 1):
         if group not in groups_with_data:
-            # Calculate y position for "No Data" text
             y_center = (max_y / 2) if max_y > 0 else 0.5
-            
             fig.add_annotation(
-                x=1.5,  # Center between DIV positions
+                x=1.5,
                 y=y_center,
                 text="<b>No Data</b>",
                 showarrow=False,
@@ -350,20 +601,7 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
                 row=1, col=col
             )
     
-    # FIXED: Better layout with proper spacing and titles
-    annotations = []
-    if is_sparse_metric_flag and total_data_points > 0:
-        annotations.append(
-            dict(
-                text="Note: Sparse data is expected for burst metrics due to conservative detection settings",
-                showarrow=False,
-                xref="paper", yref="paper",
-                x=0.5, y=-0.15,
-                font=dict(size=10, color='gray'),
-                align="center"
-            )
-        )
-    
+    # Layout matching MEA-NAP style
     fig.update_layout(
         title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
         height=500,
@@ -371,33 +609,30 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
         paper_bgcolor='white',
         font=dict(family='Arial', size=12, color='black'),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        annotations=annotations,
-        margin=dict(b=100 if is_sparse_metric_flag else 60, t=100, l=60, r=60)  # INCREASED top margin for titles
+        margin=dict(b=60, t=100, l=60, r=60)
     )
     
-    # FIXED: Better axis handling with outlier detection
-    # Collect all values to detect outliers
+    # Calculate y-axis range
     all_values = []
     for group in plot_data:
         for div in plot_data[group]:
             all_values.extend(plot_data[group][div])
     
-    # Calculate reasonable y-axis range (exclude extreme outliers)
     if len(all_values) > 0:
         all_values = sorted(all_values)
-        if len(all_values) > 2:
-            # Use 95th percentile as max to handle outliers
+        if len(all_values) > 1:
             p95 = np.percentile(all_values, 95)
             p5 = np.percentile(all_values, 5)
             y_max = p95 * 1.2
             y_min = max(0, p5 * 0.8)
         else:
-            y_max = max_y * 1.15
+            y_max = max_y * 1.2
             y_min = 0
     else:
         y_max = 1
         y_min = 0
     
+    # Update axes
     for col in range(1, len(filtered_groups) + 1):
         fig.update_xaxes(
             tickvals=list(range(1, len(filtered_divs) + 1)),
@@ -417,17 +652,7 @@ def create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metri
         zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
     )
     
-    # Add outlier warning if needed
-    if len(all_values) > 0 and max_y > y_max:
-        outlier_count = len([v for v in all_values if v > y_max])
-        fig.add_annotation(
-            text=f"⚠️ {outlier_count} extreme outlier(s) excluded from y-axis scale",
-            showarrow=False,
-            xref="paper", yref="paper",
-            x=0.02, y=0.98,
-            font=dict(size=9, color='orange'),
-            align="left"
-        )
+    print(f"   ✅ Created MEA-NAP style plot: {total_data_points} data points across {len(filtered_groups)} groups")
     
     return fig
 
@@ -707,311 +932,311 @@ def create_half_violin_plot_by_group(data, metric, title, selected_groups=None, 
     # Create violin plot
     return create_violin_plot_by_group(plot_data, filtered_groups, filtered_divs, metric, title)
 
-def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None):
-    """
-    Create MEA-NAP style violin plot organized by age
+# def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None):
+#     """
+#     Create MEA-NAP style violin plot organized by age
     
-    CORRECTED: Shows separate subplot for each age, with groups compared within each age
-    This matches the expected MEA-NAP output: "Node by Group, stratified by Age"
+#     CORRECTED: Shows separate subplot for each age, with groups compared within each age
+#     This matches the expected MEA-NAP output: "Node by Group, stratified by Age"
     
-    Args:
-        data: Processed data from metric-specific functions
-        metric: Metric field name to plot
-        title: Plot title
-        selected_groups: List of groups to include
-        selected_divs: List of DIVs to include
+#     Args:
+#         data: Processed data from metric-specific functions
+#         metric: Metric field name to plot
+#         title: Plot title
+#         selected_groups: List of groups to include
+#         selected_divs: List of DIVs to include
         
-    Returns:
-        Plotly figure
-    """
-    print(f"🎨 Creating violin plot by age for {metric} (Node by Group, stratified by Age)")
+#     Returns:
+#         Plotly figure
+#     """
+#     print(f"🎨 Creating violin plot by age for {metric} (Node by Group, stratified by Age)")
     
-    # Prepare data using by_group structure (NOT by_div)
-    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
-        data, metric, selected_groups, selected_divs, 'nodebygroup'  # Use nodebygroup to get group structure
-    )
+#     # Prepare data using by_group structure (NOT by_div)
+#     plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
+#         data, metric, selected_groups, selected_divs, 'nodebygroup'  # Use nodebygroup to get group structure
+#     )
     
-    # Create subplots - one for each DIV/age
-    fig = make_subplots(
-        rows=1, cols=len(filtered_divs), 
-        subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],  # Age50, Age53, etc.
-        shared_yaxes=True,
-        horizontal_spacing=0.08
-    )
+#     # Create subplots - one for each DIV/age
+#     fig = make_subplots(
+#         rows=1, cols=len(filtered_divs), 
+#         subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],  # Age50, Age53, etc.
+#         shared_yaxes=True,
+#         horizontal_spacing=0.08
+#     )
     
-    max_y = 0
-    is_sparse_metric_flag = is_sparse_metric(metric)
-    total_data_points = 0
+#     max_y = 0
+#     is_sparse_metric_flag = is_sparse_metric(metric)
+#     total_data_points = 0
     
-    # For each DIV (age), create a group comparison subplot
-    for col, div in enumerate(filtered_divs, 1):
-        div_has_data = False
+#     # For each DIV (age), create a group comparison subplot
+#     for col, div in enumerate(filtered_divs, 1):
+#         div_has_data = False
         
-        # Within this DIV, show all groups on X-axis
-        for group_idx, group in enumerate(filtered_groups):
-            if group not in plot_data or div not in plot_data[group]:
-                continue
+#         # Within this DIV, show all groups on X-axis
+#         for group_idx, group in enumerate(filtered_groups):
+#             if group not in plot_data or div not in plot_data[group]:
+#                 continue
                 
-            div_values = plot_data[group][div]
-            if not isinstance(div_values, list) or len(div_values) == 0:
-                continue
+#             div_values = plot_data[group][div]
+#             if not isinstance(div_values, list) or len(div_values) == 0:
+#                 continue
             
-            div_has_data = True
+#             div_has_data = True
             
-            # Track statistics
-            try:
-                current_max = max(div_values)
-                max_y = max(max_y, current_max)
-                total_data_points += len(div_values)
-            except (ValueError, TypeError):
-                continue
+#             # Track statistics
+#             try:
+#                 current_max = max(div_values)
+#                 max_y = max(max_y, current_max)
+#                 total_data_points += len(div_values)
+#             except (ValueError, TypeError):
+#                 continue
             
-            # Get colors - use group-specific colors or default
-            color = MATLAB_COLORS.get(group, MATLAB_COLORS['default'])
-            fill_color = MATLAB_FILL_COLORS.get(group, MATLAB_FILL_COLORS['default'])
+#             # Get colors - use group-specific colors or default
+#             color = MATLAB_COLORS.get(group, MATLAB_COLORS['default'])
+#             fill_color = MATLAB_FILL_COLORS.get(group, MATLAB_FILL_COLORS['default'])
             
-            x_base = group_idx + 1  # X-position for this group
+#             x_base = group_idx + 1  # X-position for this group
             
-            # ENHANCED SPARSE DATA HANDLING
-            if len(div_values) <= 2:
-                # VERY SPARSE: Large, prominent dots
-                jitter = np.random.normal(0, 0.08, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(
-                            color=color,
-                            size=12,
-                            opacity=0.9,
-                            line=dict(width=3, color='black'),
-                            symbol='diamond'
-                        ),
-                        name=f'{group}',
-                        legendgroup=f'{group}',
-                        showlegend=(col == 1),  # Only show legend for first subplot
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
+#             # ENHANCED SPARSE DATA HANDLING
+#             if len(div_values) <= 2:
+#                 # VERY SPARSE: Large, prominent dots
+#                 jitter = np.random.normal(0, 0.08, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(
+#                             color=color,
+#                             size=12,
+#                             opacity=0.9,
+#                             line=dict(width=3, color='black'),
+#                             symbol='diamond'
+#                         ),
+#                         name=f'{group}',
+#                         legendgroup=f'{group}',
+#                         showlegend=(col == 1),  # Only show legend for first subplot
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
                 
-                # Add sample size annotation
-                fig.add_annotation(
-                    x=x_base,
-                    y=max(div_values) + max_y * 0.02,
-                    text=f'<b>n={len(div_values)}</b>',
-                    showarrow=False,
-                    font=dict(size=11, color='darkred'),
-                    yshift=15,
-                    row=1, col=col
-                )
+#                 # Add sample size annotation
+#                 fig.add_annotation(
+#                     x=x_base,
+#                     y=max(div_values) + max_y * 0.02,
+#                     text=f'<b>n={len(div_values)}</b>',
+#                     showarrow=False,
+#                     font=dict(size=11, color='darkred'),
+#                     yshift=15,
+#                     row=1, col=col
+#                 )
                 
-            elif len(div_values) <= 5:
-                # SPARSE: Medium dots
-                jitter = np.random.normal(0, 0.06, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(
-                            color=color,
-                            size=10,
-                            opacity=0.8,
-                            line=dict(width=2, color='black'),
-                            symbol='circle'
-                        ),
-                        name=f'{group}',
-                        legendgroup=f'{group}',
-                        showlegend=(col == 1),
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
+#             elif len(div_values) <= 5:
+#                 # SPARSE: Medium dots
+#                 jitter = np.random.normal(0, 0.06, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(
+#                             color=color,
+#                             size=10,
+#                             opacity=0.8,
+#                             line=dict(width=2, color='black'),
+#                             symbol='circle'
+#                         ),
+#                         name=f'{group}',
+#                         legendgroup=f'{group}',
+#                         showlegend=(col == 1),
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
                 
-                # Add sample size annotation
-                fig.add_annotation(
-                    x=x_base,
-                    y=max(div_values) + max_y * 0.02,
-                    text=f'n={len(div_values)}',
-                    showarrow=False,
-                    font=dict(size=10, color='gray'),
-                    yshift=12,
-                    row=1, col=col
-                )
+#                 # Add sample size annotation
+#                 fig.add_annotation(
+#                     x=x_base,
+#                     y=max(div_values) + max_y * 0.02,
+#                     text=f'n={len(div_values)}',
+#                     showarrow=False,
+#                     font=dict(size=10, color='gray'),
+#                     yshift=12,
+#                     row=1, col=col
+#                 )
             
-            else:
-                # NORMAL DATA: Individual points + violin
-                jitter = np.random.normal(0, 0.04, size=len(div_values))
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base + j for j in jitter],
-                        y=div_values,
-                        mode='markers',
-                        marker=dict(color='black', size=4, opacity=0.6),
-                        name=f'{group}',
-                        legendgroup=f'{group}',
-                        showlegend=(col == 1),
-                        hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
+#             else:
+#                 # NORMAL DATA: Individual points + violin
+#                 jitter = np.random.normal(0, 0.04, size=len(div_values))
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base + j for j in jitter],
+#                         y=div_values,
+#                         mode='markers',
+#                         marker=dict(color='black', size=4, opacity=0.6),
+#                         name=f'{group}',
+#                         legendgroup=f'{group}',
+#                         showlegend=(col == 1),
+#                         hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
                 
-                # Add violin for rich data
-                if len(div_values) >= 4:
-                    try:
-                        kde_data = calculate_half_violin_data(div_values)
-                        x_data = kde_data.get('x')
-                        if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
-                            if isinstance(x_data, np.ndarray):
-                                x_data = x_data.tolist()
+#                 # Add violin for rich data
+#                 if len(div_values) >= 4:
+#                     try:
+#                         kde_data = calculate_half_violin_data(div_values)
+#                         x_data = kde_data.get('x')
+#                         if x_data is not None and hasattr(x_data, '__len__') and len(x_data) > 0:
+#                             if isinstance(x_data, np.ndarray):
+#                                 x_data = x_data.tolist()
                             
-                            fig.add_trace(
-                                go.Violin(
-                                    x=[x_base] * len(x_data),
-                                    y=x_data,
-                                    width=0.6,
-                                    side='both',
-                                    line_color=color,
-                                    fillcolor=fill_color,
-                                    points=False,
-                                    meanline_visible=False,
-                                    showlegend=False,
-                                    hoverinfo='skip'
-                                ),
-                                row=1, col=col
-                            )
-                    except Exception as e:
-                        print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
+#                             fig.add_trace(
+#                                 go.Violin(
+#                                     x=[x_base] * len(x_data),
+#                                     y=x_data,
+#                                     width=0.6,
+#                                     side='both',
+#                                     line_color=color,
+#                                     fillcolor=fill_color,
+#                                     points=False,
+#                                     meanline_visible=False,
+#                                     showlegend=False,
+#                                     hoverinfo='skip'
+#                                 ),
+#                                 row=1, col=col
+#                             )
+#                     except Exception as e:
+#                         print(f"⚠️ Violin plot failed for {group} DIV {div}: {e}")
             
-            # Add mean indicator (always visible)
-            try:
-                mean_value = np.mean(div_values)
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x_base],
-                        y=[mean_value],
-                        mode='markers',
-                        marker=dict(
-                            color='white',
-                            size=8 if len(div_values) <= 5 else 6,
-                            opacity=1.0,
-                            line=dict(width=2, color='black')
-                        ),
-                        showlegend=False,
-                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)}<extra></extra>'
-                    ),
-                    row=1, col=col
-                )
-            except Exception as e:
-                print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+#             # Add mean indicator (always visible)
+#             try:
+#                 mean_value = np.mean(div_values)
+#                 fig.add_trace(
+#                     go.Scatter(
+#                         x=[x_base],
+#                         y=[mean_value],
+#                         mode='markers',
+#                         marker=dict(
+#                             color='white',
+#                             size=8 if len(div_values) <= 5 else 6,
+#                             opacity=1.0,
+#                             line=dict(width=2, color='black')
+#                         ),
+#                         showlegend=False,
+#                         hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)}<extra></extra>'
+#                     ),
+#                     row=1, col=col
+#                 )
+#             except Exception as e:
+#                 print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
         
-        # Update x-axis for this subplot to show group names
-        fig.update_xaxes(
-            tickvals=list(range(1, len(filtered_groups) + 1)),
-            ticktext=filtered_groups,
-            title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
-            showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
-            linecolor='black', linewidth=1,
-            range=[0.5, len(filtered_groups) + 0.5],
-            row=1, col=col
-        )
+#         # Update x-axis for this subplot to show group names
+#         fig.update_xaxes(
+#             tickvals=list(range(1, len(filtered_groups) + 1)),
+#             ticktext=filtered_groups,
+#             title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
+#             showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+#             linecolor='black', linewidth=1,
+#             range=[0.5, len(filtered_groups) + 0.5],
+#             row=1, col=col
+#         )
         
-        # Add "No Data" annotation for empty age subplots
-        if not div_has_data:
-            y_center = (max_y / 2) if max_y > 0 else 0.5
-            fig.add_annotation(
-                x=len(filtered_groups) / 2 + 0.5,
-                y=y_center,
-                text="<b>No Data</b>",
-                showarrow=False,
-                font=dict(size=16, color='lightgray'),
-                row=1, col=col
-            )
+#         # Add "No Data" annotation for empty age subplots
+#         if not div_has_data:
+#             y_center = (max_y / 2) if max_y > 0 else 0.5
+#             fig.add_annotation(
+#                 x=len(filtered_groups) / 2 + 0.5,
+#                 y=y_center,
+#                 text="<b>No Data</b>",
+#                 showarrow=False,
+#                 font=dict(size=16, color='lightgray'),
+#                 row=1, col=col
+#             )
     
-    # Create layout annotations
-    annotations = []
-    if is_sparse_metric_flag and total_data_points > 0:
-        annotations.append(
-            dict(
-                text="Note: Sparse data expected for burst metrics due to conservative detection settings",
-                showarrow=False,
-                xref="paper", yref="paper",
-                x=0.5, y=-0.15,
-                font=dict(size=10, color='gray'),
-                align="center"
-            )
-        )
+#     # Create layout annotations
+#     annotations = []
+#     if is_sparse_metric_flag and total_data_points > 0:
+#         annotations.append(
+#             dict(
+#                 text="Note: Sparse data expected for burst metrics due to conservative detection settings",
+#                 showarrow=False,
+#                 xref="paper", yref="paper",
+#                 x=0.5, y=-0.15,
+#                 font=dict(size=10, color='gray'),
+#                 align="center"
+#             )
+#         )
     
-    # Add explanation for Node by Age
-    annotations.append(
-        dict(
-            text="Node by Age: Group comparisons within each age (stratified by DIV)",
-            showarrow=False,
-            xref="paper", yref="paper",
-            x=0.5, y=1.05,
-            font=dict(size=10, color='blue'),
-            align="center"
-        )
-    )
+#     # Add explanation for Node by Age
+#     annotations.append(
+#         dict(
+#             text="Node by Age: Group comparisons within each age (stratified by DIV)",
+#             showarrow=False,
+#             xref="paper", yref="paper",
+#             x=0.5, y=1.05,
+#             font=dict(size=10, color='blue'),
+#             align="center"
+#         )
+#     )
     
-    # Layout
-    fig.update_layout(
-        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
-        height=500,
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(family='Arial', size=12, color='black'),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        annotations=annotations,
-        margin=dict(b=100 if is_sparse_metric_flag else 60, t=120, l=60, r=60)
-    )
+#     # Layout
+#     fig.update_layout(
+#         title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+#         height=500,
+#         plot_bgcolor='white',
+#         paper_bgcolor='white',
+#         font=dict(family='Arial', size=12, color='black'),
+#         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+#         annotations=annotations,
+#         margin=dict(b=100 if is_sparse_metric_flag else 60, t=120, l=60, r=60)
+#     )
     
-    # Better axis handling with outlier detection
-    all_values = []
-    for group in plot_data:
-        for div in plot_data[group]:
-            all_values.extend(plot_data[group][div])
+#     # Better axis handling with outlier detection
+#     all_values = []
+#     for group in plot_data:
+#         for div in plot_data[group]:
+#             all_values.extend(plot_data[group][div])
     
-    if len(all_values) > 0:
-        all_values = sorted(all_values)
-        if len(all_values) > 2:
-            p95 = np.percentile(all_values, 95)
-            p5 = np.percentile(all_values, 5)
-            y_max = p95 * 1.2
-            y_min = max(0, p5 * 0.8)
-        else:
-            y_max = max_y * 1.15
-            y_min = 0
-    else:
-        y_max = 1
-        y_min = 0
+#     if len(all_values) > 0:
+#         all_values = sorted(all_values)
+#         if len(all_values) > 2:
+#             p95 = np.percentile(all_values, 95)
+#             p5 = np.percentile(all_values, 5)
+#             y_max = p95 * 1.2
+#             y_min = max(0, p5 * 0.8)
+#         else:
+#             y_max = max_y * 1.15
+#             y_min = 0
+#     else:
+#         y_max = 1
+#         y_min = 0
     
-    # Y-axis (shared across all subplots)
-    fig.update_yaxes(
-        title_text=f"<b>{get_metric_label(metric)}</b>",
-        range=[y_min, y_max],
-        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
-        linecolor='black', linewidth=1,
-        zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
-    )
+#     # Y-axis (shared across all subplots)
+#     fig.update_yaxes(
+#         title_text=f"<b>{get_metric_label(metric)}</b>",
+#         range=[y_min, y_max],
+#         showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+#         linecolor='black', linewidth=1,
+#         zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+#     )
     
-    # Add outlier warning if needed
-    if len(all_values) > 0 and max_y > y_max:
-        outlier_count = len([v for v in all_values if v > y_max])
-        fig.add_annotation(
-            text=f"⚠️ {outlier_count} extreme outlier(s) excluded from y-axis scale",
-            showarrow=False,
-            xref="paper", yref="paper",
-            x=0.02, y=0.98,
-            font=dict(size=9, color='orange'),
-            align="left"
-        )
+#     # Add outlier warning if needed
+#     if len(all_values) > 0 and max_y > y_max:
+#         outlier_count = len([v for v in all_values if v > y_max])
+#         fig.add_annotation(
+#             text=f"⚠️ {outlier_count} extreme outlier(s) excluded from y-axis scale",
+#             showarrow=False,
+#             xref="paper", yref="paper",
+#             x=0.02, y=0.98,
+#             font=dict(size=9, color='orange'),
+#             align="left"
+#         )
     
-    print(f"   ✅ Created Node by Age plot: {total_data_points} total data points across {len(filtered_divs)} age subplots")
+#     print(f"   ✅ Created Node by Age plot: {total_data_points} total data points across {len(filtered_divs)} age subplots")
     
-    return fig
+#     return fig
 
 def create_box_plot_by_group(data, metric, title, selected_groups=None, selected_divs=None):
     """
@@ -1673,6 +1898,247 @@ def create_recording_level_violin_plot_by_age(data, metric, title, selected_grou
     )
     
     print(f"   ✅ Created RECORDING-LEVEL by age plot: {total_recordings} recordings across {len(filtered_divs)} age subplots")
+    
+    return fig
+
+def create_half_violin_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None):
+    """
+    FIXED: Create MEA-NAP style violin plot organized by age - ALWAYS shows violin plots
+    Shows separate subplot for each age, with groups compared within each age
+    
+    Key Changes:
+    - Removed sparse data fallback to scatter plots  
+    - Always show violin plots like MEA-NAP (even for small datasets)
+    - Implement MEA-NAP's exact half-violin specification
+    - Structure: One subplot per DIV, groups on X-axis within each subplot
+    """
+    print(f"🎨 Creating MEA-NAP style violin plot by age for {metric}")
+    
+    # Prepare data using by_group structure
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(
+        data, metric, selected_groups, selected_divs, 'nodebygroup'
+    )
+    
+    # Create subplots - one for each DIV/age
+    fig = make_subplots(
+        rows=1, cols=len(filtered_divs), 
+        subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    max_y = 0
+    total_data_points = 0
+    
+    # For each DIV (age), create a group comparison subplot
+    for col, div in enumerate(filtered_divs, 1):
+        div_has_data = False
+        
+        # Within this DIV, show all groups on X-axis
+        for group_idx, group in enumerate(filtered_groups):
+            if group not in plot_data or div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if not isinstance(div_values, list) or len(div_values) == 0:
+                continue
+            
+            div_has_data = True
+            
+            # Track statistics
+            try:
+                current_max = max(div_values)
+                max_y = max(max_y, current_max)
+                total_data_points += len(div_values)
+            except (ValueError, TypeError):
+                continue
+            
+            # Get colors - use group-specific colors
+            color = MATLAB_COLORS.get(group, MATLAB_COLORS['default'])
+            fill_color = MATLAB_FILL_COLORS.get(group, MATLAB_FILL_COLORS['default'])
+            
+            x_base = group_idx + 1  # X-position for this group
+            
+            # MEA-NAP APPROACH: ALWAYS SHOW VIOLIN + INDIVIDUAL POINTS
+            # No fallback to scatter-only mode regardless of data size
+            
+            # 1. INDIVIDUAL DATA POINTS (LEFT side with jitter)
+            jitter_width = 0.15
+            jitter = np.random.uniform(-jitter_width, 0, size=len(div_values))  # LEFT side only
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=[x_base + j for j in jitter],
+                    y=div_values,
+                    mode='markers',
+                    marker=dict(
+                        color=color,
+                        size=6,  # MEA-NAP size scaled for Plotly
+                        opacity=0.8,
+                        line=dict(width=1, color='black')
+                    ),
+                    name=f'{group}',
+                    legendgroup=f'{group}',
+                    showlegend=(col == 1),  # Only show legend for first subplot
+                    hovertemplate=f'<b>{group} - DIV {div}</b><br>Value: %{{y:.3f}}<br>Electrode %{{pointNumber}}<br>n={len(div_values)}<extra></extra>'
+                ),
+                row=1, col=col
+            )
+            
+            # 2. HALF VIOLIN PLOT (RIGHT side) - ALWAYS SHOWN like MEA-NAP
+            if len(div_values) >= 2:  # MEA-NAP minimum: n > 1
+                try:
+                    # Use our existing KDE calculation
+                    kde_data = calculate_half_violin_data(div_values)
+                    x_data = kde_data.get('x')
+                    y_data = kde_data.get('y')
+                    
+                    if x_data is not None and y_data is not None and len(x_data) > 0:
+                        if isinstance(x_data, np.ndarray):
+                            x_data = x_data.tolist()
+                        if isinstance(y_data, np.ndarray):
+                            y_data = y_data.tolist()
+                        
+                        # MEA-NAP specification: violin on RIGHT side of x-axis center
+                        violin_width = 0.3
+                        max_density = max(y_data) if len(y_data) > 0 else 1
+                        scaled_density = [(d / max_density) * violin_width for d in y_data]
+                        violin_x = [x_base + 0.1 + d for d in scaled_density]  # RIGHT side: +0.1 offset
+                        
+                        # Create filled violin shape
+                        fig.add_trace(
+                            go.Scatter(
+                                x=violin_x + [x_base + 0.1] * len(violin_x),  # Close the shape
+                                y=x_data + x_data[::-1],  # Mirror for closing
+                                fill='toself',
+                                fillcolor=fill_color,
+                                line=dict(color=color, width=1),
+                                mode='lines',
+                                showlegend=False,
+                                hoverinfo='skip'
+                            ),
+                            row=1, col=col
+                        )
+                
+                except Exception as e:
+                    print(f"⚠️ Violin plot failed for {group} DIV {div} (n={len(div_values)}): {e}")
+                    # Continue without violin - individual points still shown
+            
+            # 3. MEAN INDICATOR (CENTER) - MEA-NAP specification
+            try:
+                mean_value = np.mean(div_values)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_base],
+                        y=[mean_value],
+                        mode='markers',
+                        marker=dict(
+                            color='black',  # MEA-NAP: pure black
+                            size=12,  # MEA-NAP size scaled for Plotly
+                            opacity=1.0,
+                            line=dict(width=2, color='black')
+                        ),
+                        showlegend=False,
+                        hovertemplate=f'<b>Mean: {mean_value:.3f}</b><br>n={len(div_values)} electrodes<extra></extra>'
+                    ),
+                    row=1, col=col
+                )
+                
+                # 4. ERROR BARS (SEM, not std) - MEA-NAP specification
+                if len(div_values) > 1:
+                    sem_value = np.std(div_values) / np.sqrt(len(div_values))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[x_base, x_base],
+                            y=[mean_value - sem_value, mean_value + sem_value],
+                            mode='lines',
+                            line=dict(color='black', width=3),  # MEA-NAP: 3px width
+                            showlegend=False,
+                            hoverinfo='skip'
+                        ),
+                        row=1, col=col
+                    )
+                
+            except Exception as e:
+                print(f"⚠️ Mean calculation failed for {group} DIV {div}: {e}")
+        
+        # Update x-axis for this subplot to show group names
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_groups) + 1)),
+            ticktext=filtered_groups,
+            title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
+            showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+            linecolor='black', linewidth=1,
+            range=[0.5, len(filtered_groups) + 0.5],
+            row=1, col=col
+        )
+        
+        # Add "No Data" annotation for empty age subplots
+        if not div_has_data:
+            y_center = (max_y / 2) if max_y > 0 else 0.5
+            fig.add_annotation(
+                x=len(filtered_groups) / 2 + 0.5,
+                y=y_center,
+                text="<b>No Data</b>",
+                showarrow=False,
+                font=dict(size=16, color='lightgray'),
+                row=1, col=col
+            )
+    
+    # Layout matching MEA-NAP style
+    annotations = []
+    annotations.append(
+        dict(
+            text="Node by Age: Group comparisons within each age (stratified by DIV)",
+            showarrow=False,
+            xref="paper", yref="paper",
+            x=0.5, y=1.05,
+            font=dict(size=10, color='blue'),
+            align="center"
+        )
+    )
+    
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        annotations=annotations,
+        margin=dict(b=60, t=120, l=60, r=60)
+    )
+    
+    # Calculate y-axis range
+    all_values = []
+    for group in plot_data:
+        for div in plot_data[group]:
+            all_values.extend(plot_data[group][div])
+    
+    if len(all_values) > 0:
+        all_values = sorted(all_values)
+        if len(all_values) > 1:
+            p95 = np.percentile(all_values, 95)
+            p5 = np.percentile(all_values, 5)
+            y_max = p95 * 1.2
+            y_min = max(0, p5 * 0.8)
+        else:
+            y_max = max_y * 1.2
+            y_min = 0
+    else:
+        y_max = 1
+        y_min = 0
+    
+    # Y-axis (shared across all subplots)
+    fig.update_yaxes(
+        title_text=f"<b>{get_metric_label(metric)}</b>",
+        range=[y_min, y_max],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1,
+        zeroline=True, zerolinecolor='rgba(200,200,200,0.5)'
+    )
+    
+    print(f"   ✅ Created MEA-NAP style Node by Age plot: {total_data_points} total data points across {len(filtered_divs)} age subplots")
     
     return fig
 

@@ -162,6 +162,56 @@ def load_neuronal_activity_data(graph_data_folder, data_info):
             # Look for both file types
             electrode_file = os.path.join(graph_data_folder, group, exp, f"{exp}_electrodeLevelActivity.mat")
             recording_file = os.path.join(graph_data_folder, group, exp, f"{exp}_recordingLevelActivity.mat")
+
+            # Temporary function : to validate electrode-level activity file contents
+            def validate_electrode_file_contents(electrode_file, activity_struct):
+                """
+                Validate what's actually in the electrode-level activity file
+                Based on Pipeline Claude's exportGraphData.m analysis
+                """
+                print(f"\n🔍 VALIDATING: {os.path.basename(electrode_file)}")
+                print("-" * 50)
+                
+                # Expected fields from exportGraphData.m
+                expected_fields = [
+                    'FR',                           # Should work (baseline)
+                    'channelBurstRate',            # Should have electrode values  
+                    'channelBurstDur',             # Should have electrode values
+                    'channelISIwithinBurst',       # Should have electrode values
+                    'channeISIoutsideBurst',       # Note: typo in MEA-NAP (missing 'l')
+                    'channelFracSpikesInBursts'    # Should have electrode values
+                ]
+                
+                print("Field availability and content:")
+                
+                for field in expected_fields:
+                    if hasattr(activity_struct, field):
+                        field_data = getattr(activity_struct, field)
+                        
+                        if hasattr(field_data, '__len__'):
+                            data_len = len(field_data)
+                            is_empty = data_len == 0
+                            sample = field_data[:3] if data_len > 0 else "EMPTY"
+                            status = "❌ EMPTY" if is_empty else "✅ HAS DATA"
+                            
+                            print(f"  {field}: {status} (length: {data_len}, sample: {sample})")
+                            
+                            # Special check for FR as baseline
+                            if field == 'FR' and data_len > 0:
+                                print(f"    ℹ️  FR baseline: {data_len} electrodes detected")
+                                
+                        else:
+                            print(f"  {field}: ⚠️  SCALAR ({field_data})")
+                    else:
+                        print(f"  {field}: ❌ FIELD NOT FOUND")
+                
+                print("-" * 50)
+
+            # Add this call in load_neuronal_activity_data() after loading first file
+            # Around line 130, after: activity_struct = act_data['electrodeLevelData']
+            # Add this line:
+            if files_loaded == 1:  # Only validate first file to avoid spam
+                validate_electrode_file_contents(electrode_file, activity_struct)
             
             # Check which files exist
             electrode_file_exists = os.path.exists(electrode_file)
