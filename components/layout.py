@@ -1,4 +1,4 @@
-# components/layout.py - REFACTORED VERSION - Clean and Modular
+# components/layout.py - REFACTORED VERSION - Clean and Modular WITH Y-AXIS CONTROLS
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
@@ -170,6 +170,67 @@ def create_filter_sidebar():
             )
         ], style={'marginBottom': '20px'}),
         
+        # Y-AXIS CONTROLS SECTION - NEW ADDITION
+        html.Div([
+            html.H4("📊 Y-Axis Range", style={'marginTop': '20px', 'marginBottom': '10px'}),
+            
+            # Auto vs Manual toggle
+            html.Div([
+                html.Label("Y-Axis Mode:", style={'fontWeight': 'bold'}),
+                dcc.RadioItems(
+                    id="y-axis-mode",
+                    options=[
+                        {'label': ' Auto Range', 'value': 'auto'},
+                        {'label': ' Manual Range', 'value': 'manual'}
+                    ],
+                    value='auto',
+                    inline=True,
+                    style={'marginBottom': '10px'},
+                    labelStyle={'marginRight': '15px', 'cursor': 'pointer'}
+                )
+            ]),
+            
+            # Manual range inputs (hidden by default)
+            html.Div([
+                html.Div([
+                    html.Label("Y-Min:", style={'fontWeight': 'bold'}),
+                    dcc.Input(
+                        id="y-min-input",
+                        type="number",
+                        value=0,
+                        step=0.1,
+                        style={'width': '100%', 'marginBottom': '5px'},
+                        placeholder="Minimum Y value"
+                    )
+                ], style={'marginBottom': '10px'}),
+                
+                html.Div([
+                    html.Label("Y-Max:", style={'fontWeight': 'bold'}),
+                    dcc.Input(
+                        id="y-max-input", 
+                        type="number",
+                        value=10,
+                        step=0.1,
+                        style={'width': '100%', 'marginBottom': '5px'},
+                        placeholder="Maximum Y value"
+                    )
+                ], style={'marginBottom': '10px'}),
+                
+                # Quick preset buttons
+                html.Div([
+                    html.Label("Quick Presets:", style={'fontWeight': 'bold', 'fontSize': '12px'}),
+                    html.Div([
+                        html.Button("0-1", id="preset-0-1", className="btn btn-sm btn-outline-secondary", style={'margin': '2px', 'fontSize': '10px'}),
+                        html.Button("0-10", id="preset-0-10", className="btn btn-sm btn-outline-secondary", style={'margin': '2px', 'fontSize': '10px'}),
+                        html.Button("0-100", id="preset-0-100", className="btn btn-sm btn-outline-secondary", style={'margin': '2px', 'fontSize': '10px'}),
+                        html.Button("Reset", id="preset-reset", className="btn btn-sm btn-outline-warning", style={'margin': '2px', 'fontSize': '10px'})
+                    ], style={'display': 'flex', 'flexWrap': 'wrap'})
+                ], style={'marginBottom': '10px'})
+                
+            ], id="manual-y-controls", style={'display': 'none'})  # Hidden by default
+            
+        ], style={'marginBottom': '20px', 'padding': '15px', 'border': '1px solid #ddd', 'borderRadius': '5px'}),
+        
         # Metric dropdown sections
         create_metric_dropdown_section('neuronal-node-group', 'Node By Group Metric:', NEURONAL_NODE_METRICS, 'FR'),
         create_metric_dropdown_section('neuronal-node-age', 'Node By Age Metric:', NEURONAL_NODE_METRICS, 'FR'),
@@ -186,17 +247,6 @@ def create_filter_sidebar():
                 placeholder="Load data first..."
             )
         ], id='lag-dropdown-container', style={'marginBottom': '15px', 'display': 'none'}),
-        
-        # Visualization type
-        html.Div([
-            html.Label('Visualization:', style={'fontWeight': 'bold'}),
-            dcc.RadioItems(
-                id='viz-type',
-                options=VISUALIZATION_TYPE_OPTIONS,
-                value='violin',
-                labelStyle={'display': 'block', 'marginBottom': '5px'}
-            )
-        ], style={'marginBottom': '15px'}),
         
         # Data info panel
         html.Div(

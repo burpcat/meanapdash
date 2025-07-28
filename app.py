@@ -339,11 +339,148 @@ def update_metric_options(current_selection):
     
     return [lag_style]
 
+def create_neuronal_visualization_main_with_y_axis(processed_data, metric, comparison, title, groups, selected_divs,
+                                                   y_range_mode='auto', y_min=None, y_max=None):
+    """
+    UPDATED: Main neuronal visualization function with Y-axis support
+    
+    Args:
+        processed_data: Data processed by metric-specific function
+        metric: The metric name
+        comparison: Type of comparison (nodebygroup, nodebyage, etc.)
+        title: Plot title
+        groups: Selected groups
+        selected_divs: Selected DIVs
+        y_range_mode: 'auto' or 'manual'
+        y_min: Manual Y minimum
+        y_max: Manual Y maximum
+    
+    Returns:
+        Plotly figure
+    """
+    
+    # Get the field name to use in the data
+    field_name = get_metric_field_name(metric)
+    
+    # Route to appropriate visualization function WITH Y-AXIS PARAMETERS
+    if comparison in ['nodebygroup', 'recordingsbygroup']:
+        return create_half_violin_plot_by_group(
+            processed_data, field_name, title, groups, selected_divs,
+            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max
+        )
+    elif comparison in ['nodebyage', 'recordingsbyage']:
+        return create_half_violin_plot_by_age(
+            processed_data, field_name, title, groups, selected_divs,
+            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max
+        )
+    else:
+        return create_error_plot(f"Unknown comparison type: {comparison}")
+
+# @app.callback(
+#     Output('visualization-graph', 'figure'),
+#     [Input('group-dropdown', 'value'),
+#      Input('div-dropdown', 'value'),
+#      Input('viz-type', 'value'),
+#      Input('lag-dropdown', 'value'),
+#      Input('current-comparison-store', 'data'),
+#      Input('data-loaded-store', 'data'),
+#      # Metric dropdown inputs
+#      Input('neuronal-node-group-metric', 'value'),
+#      Input('neuronal-recording-group-metric', 'value'),
+#      Input('neuronal-node-age-metric', 'value'),
+#      Input('neuronal-recording-age-metric', 'value')],
+#     prevent_initial_call=True
+# )
+# def update_visualization(groups, selected_divs, viz_type, lag, current_selection, data_loaded,
+#                         node_group_metric, recording_group_metric, node_age_metric, recording_age_metric):
+#     """REFACTORED visualization callback - now uses utils package"""
+    
+#     # Check if data has been loaded
+#     if not data_loaded or not app.data.get('loaded'):
+#         return create_empty_plot('Please load data first using the "Load Data" button above')
+    
+#     # Check if we have groups and current selection
+#     if not groups or not current_selection:
+#         return create_empty_plot('Please select at least one group')
+    
+#     activity = current_selection.get('activity')
+#     comparison = current_selection.get('comparison')
+    
+#     if not activity or not comparison:
+#         return create_empty_plot('No activity or comparison type selected')
+    
+#     # DEBUG: Print what we're trying to visualize
+#     print(f"\n🎨 VISUALIZATION REQUEST:")
+#     print(f"   Activity: {activity}")
+#     print(f"   Comparison: {comparison}")
+#     print(f"   Groups: {groups}")
+#     print(f"   DIVs: {selected_divs}")
+    
+#     # DYNAMIC METRIC SELECTION based on current tab
+#     metric = None
+#     if activity == 'neuronal':
+#         if comparison == 'nodebygroup':
+#             metric = node_group_metric or 'FR'
+#         elif comparison == 'recordingsbygroup':
+#             metric = recording_group_metric or 'numActiveElec'
+#         elif comparison == 'nodebyage':
+#             metric = node_age_metric or 'FR'
+#         elif comparison == 'recordingsbyage':
+#             metric = recording_age_metric or 'numActiveElec'
+    
+#     # If no metric selected, use defaults
+#     if not metric:
+#         metric = 'FR'
+    
+#     print(f"   Metric: {metric}")
+    
+#     # VALIDATE VISUALIZATION REQUEST using utils
+#     validation = validate_visualization_request(metric, comparison, groups, selected_divs)
+#     if not validation['is_valid']:
+#         error_msg = '; '.join(validation['errors'])
+#         return create_error_plot(error_msg)
+    
+#     try:
+#         # NEURONAL ACTIVITY HANDLING using utils package
+#         if activity == 'neuronal':
+#             # Check if we have a processor for this metric
+#             if not is_metric_available(metric):
+#                 return create_error_plot(f'Metric "{metric}" not yet implemented')
+            
+#             # Process the data using the utils package
+#             processed_data = process_metric(metric, app.data['neuronal'], groups, selected_divs)
+            
+#             # Create the title using utils
+#             metric_title = get_metric_title(metric)
+            
+#             if comparison in ['nodebygroup', 'recordingsbygroup']:
+#                 title = f"{metric_title} by Group"
+#             elif comparison in ['nodebyage', 'recordingsbyage']:
+#                 title = f"{metric_title} by Age"
+#             else:
+#                 title = f"{metric_title}"
+            
+#             # Create the visualization using the main function
+#             return create_neuronal_visualization_main(processed_data, metric, comparison, title, groups, selected_divs)
+                
+#         elif activity == 'network':
+#             # Network activity - not available in ExperimentMatFiles
+#             return create_empty_plot("Network metrics not available in ExperimentMatFiles")
+        
+#         # Default fallback
+#         return create_empty_plot("Visualization not yet implemented for this combination")
+        
+#     except Exception as e:
+#         print(f"❌ Error in visualization: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return create_error_plot(f'Error: {str(e)}')
+
 @app.callback(
     Output('visualization-graph', 'figure'),
     [Input('group-dropdown', 'value'),
      Input('div-dropdown', 'value'),
-     Input('viz-type', 'value'),
+     Input("plot-type-selector", "value"),
      Input('lag-dropdown', 'value'),
      Input('current-comparison-store', 'data'),
      Input('data-loaded-store', 'data'),
@@ -351,12 +488,17 @@ def update_metric_options(current_selection):
      Input('neuronal-node-group-metric', 'value'),
      Input('neuronal-recording-group-metric', 'value'),
      Input('neuronal-node-age-metric', 'value'),
-     Input('neuronal-recording-age-metric', 'value')],
+     Input('neuronal-recording-age-metric', 'value'),
+     # ADD THESE 3 Y-AXIS INPUTS:
+     Input("y-axis-mode", "value"),
+     Input("y-min-input", "value"),
+     Input("y-max-input", "value")],
     prevent_initial_call=True
 )
 def update_visualization(groups, selected_divs, viz_type, lag, current_selection, data_loaded,
-                        node_group_metric, recording_group_metric, node_age_metric, recording_age_metric):
-    """REFACTORED visualization callback - now uses utils package"""
+                        node_group_metric, recording_group_metric, node_age_metric, recording_age_metric,
+                        y_axis_mode, y_min, y_max):  # ADD THESE 3 PARAMETERS
+    """UPDATED visualization callback with Y-axis support"""
     
     # Check if data has been loaded
     if not data_loaded or not app.data.get('loaded'):
@@ -378,6 +520,7 @@ def update_visualization(groups, selected_divs, viz_type, lag, current_selection
     print(f"   Comparison: {comparison}")
     print(f"   Groups: {groups}")
     print(f"   DIVs: {selected_divs}")
+    print(f"   Y-axis: mode={y_axis_mode}, min={y_min}, max={y_max}")  # NEW DEBUG LINE
     
     # DYNAMIC METRIC SELECTION based on current tab
     metric = None
@@ -423,8 +566,11 @@ def update_visualization(groups, selected_divs, viz_type, lag, current_selection
             else:
                 title = f"{metric_title}"
             
-            # Create the visualization using the main function
-            return create_neuronal_visualization_main(processed_data, metric, comparison, title, groups, selected_divs)
+            # UPDATED: Create the visualization WITH Y-axis parameters
+            return create_neuronal_visualization_main_with_y_axis(
+                processed_data, metric, comparison, title, groups, selected_divs,
+                y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max
+            )
                 
         elif activity == 'network':
             # Network activity - not available in ExperimentMatFiles
