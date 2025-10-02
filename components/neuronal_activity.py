@@ -1172,3 +1172,320 @@ def analyze_burst_data_distribution(data, metric='channelBurstRate'):
                 print(f"    Mean: {np.mean(valid_values):.2f}")
             else:
                 print(f"    No valid burst data detected")
+
+# 1. UPDATE existing box plot function to have Y-axis support:
+def create_box_plot_by_group(data, metric, title, selected_groups=None, selected_divs=None,
+                            y_range_mode='auto', y_min=None, y_max=None):
+    """Create MEA-NAP style box plot organized by group with Y-axis controls"""
+    
+    # Prepare data for plotting
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(data, metric, selected_groups, selected_divs)
+    
+    # Create box plot with MEA-NAP colors
+    fig = make_subplots(
+        rows=1, cols=len(filtered_groups), 
+        subplot_titles=[f'<b>{g}</b>' for g in filtered_groups],
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    for col, group in enumerate(filtered_groups, 1):
+        if group not in plot_data:
+            continue
+            
+        for div_idx, div in enumerate(filtered_divs):
+            if div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if len(div_values) == 0:
+                continue
+            
+            # Get MEA-NAP colors
+            color = get_plot_color('nodebygroup', data, div)
+            
+            fig.add_trace(
+                go.Box(
+                    y=div_values,
+                    name=f'DIV {div}',
+                    legendgroup=f'DIV {div}',
+                    showlegend=(col == 1),
+                    marker_color=color,
+                    line_color=color,
+                    boxpoints='outliers',
+                    notched=False,
+                    x=[div_idx] * len(div_values)
+                ),
+                row=1, col=col
+            )
+    
+    # Apply Y-axis controls
+    y_min_final, y_max_final = calculate_y_range(plot_data, y_range_mode, y_min, y_max)
+    
+    # Layout and axes
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    for col in range(1, len(filtered_groups) + 1):
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_divs) + 1)),
+            ticktext=[str(div) for div in filtered_divs],
+            title_text="Age" if col == len(filtered_groups)//2 + 1 else "",
+            row=1, col=col
+        )
+    
+    fig.update_yaxes(
+        title_text=get_metric_label(metric),
+        range=[y_min_final, y_max_final],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1
+    )
+    
+    print(f"   ✅ Created Box Plot: Y-range [{y_min_final:.2f}, {y_max_final:.2f}] ({'manual' if y_range_mode == 'manual' else 'auto'})")
+    return fig
+
+
+# 2. UPDATE existing bar plot function to have Y-axis support:
+def create_bar_plot_by_group(data, metric, title, selected_groups=None, selected_divs=None,
+                            y_range_mode='auto', y_min=None, y_max=None):
+    """Create MEA-NAP style bar plot organized by group with Y-axis controls"""
+    
+    # Prepare data for plotting
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(data, metric, selected_groups, selected_divs)
+    
+    fig = go.Figure()
+    
+    # Process data for bar plot
+    x_labels = []
+    y_means = []
+    y_errors = []
+    colors = []
+    
+    for group in filtered_groups:
+        if group not in plot_data:
+            continue
+            
+        for div in filtered_divs:
+            if div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if len(div_values) == 0:
+                continue
+            
+            # Calculate mean and SEM
+            mean_val = np.mean(div_values)
+            sem_val = np.std(div_values) / np.sqrt(len(div_values)) if len(div_values) > 1 else 0
+            
+            x_labels.append(f'{group}\nDIV {div}')
+            y_means.append(mean_val)
+            y_errors.append(sem_val)
+            colors.append(get_plot_color('nodebygroup', data, div))
+    
+    # Create bar plot
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=y_means,
+            error_y=dict(type='data', array=y_errors, visible=True, color='black', thickness=2, width=4),
+            marker_color=colors,
+            marker_line=dict(color='black', width=1),
+            opacity=0.8,
+            hovertemplate='%{x}<br>Mean: %{y:.3f}<br>SEM: %{error_y.array:.3f}<extra></extra>'
+        )
+    )
+    
+    # Apply Y-axis controls
+    y_min_final, y_max_final = calculate_y_range(plot_data, y_range_mode, y_min, y_max)
+    
+    # Layout
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis_title="<b>Group / Age</b>",
+        yaxis_title=f"<b>Mean {get_metric_label(metric)}</b>",
+        font=dict(family='Arial', size=12, color='black'),
+        showlegend=False
+    )
+    
+    fig.update_yaxes(
+        range=[y_min_final, y_max_final],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1
+    )
+    
+    print(f"   ✅ Created Bar Plot: Y-range [{y_min_final:.2f}, {y_max_final:.2f}] ({'manual' if y_range_mode == 'manual' else 'auto'})")
+    return fig
+
+
+# 3. ADD by_age versions:
+def create_box_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None,
+                          y_range_mode='auto', y_min=None, y_max=None):
+    """Create box plot organized by age with Y-axis controls"""
+    
+    # Prepare data
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(data, metric, selected_groups, selected_divs)
+    
+    # Create subplots - one per DIV
+    fig = make_subplots(
+        rows=1, cols=len(filtered_divs), 
+        subplot_titles=[f'<b>Age{div}</b>' for div in filtered_divs],
+        shared_yaxes=True,
+        horizontal_spacing=0.08
+    )
+    
+    for col, div in enumerate(filtered_divs, 1):
+        for group_idx, group in enumerate(filtered_groups):
+            if group not in plot_data or div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if len(div_values) == 0:
+                continue
+            
+            # Get group-based colors for by_age
+            color = get_plot_color('nodebyage', data, group)
+            
+            fig.add_trace(
+                go.Box(
+                    y=div_values,
+                    name=f'{group}',
+                    legendgroup=f'{group}',
+                    showlegend=(col == 1),
+                    marker_color=color,
+                    line_color=color,
+                    boxpoints='outliers',
+                    x=[group_idx + 1] * len(div_values)
+                ),
+                row=1, col=col
+            )
+        
+        # Update x-axis for this subplot
+        fig.update_xaxes(
+            tickvals=list(range(1, len(filtered_groups) + 1)),
+            ticktext=filtered_groups,
+            title_text="Group" if col == len(filtered_divs)//2 + 1 else "",
+            row=1, col=col
+        )
+    
+    # Apply Y-axis controls
+    y_min_final, y_max_final = calculate_y_range(plot_data, y_range_mode, y_min, y_max)
+    
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12, color='black'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    fig.update_yaxes(
+        title_text=get_metric_label(metric),
+        range=[y_min_final, y_max_final],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1
+    )
+    
+    return fig
+
+
+def create_bar_plot_by_age(data, metric, title, selected_groups=None, selected_divs=None,
+                          y_range_mode='auto', y_min=None, y_max=None):
+    """Create bar plot organized by age with Y-axis controls"""
+    
+    # Prepare data
+    plot_data, filtered_groups, filtered_divs = prepare_data_for_plotting(data, metric, selected_groups, selected_divs)
+    
+    fig = go.Figure()
+    
+    # Organize data by age and group
+    x_labels = []
+    y_means = []
+    y_errors = []
+    colors = []
+    
+    for div in filtered_divs:
+        for group in filtered_groups:
+            if group not in plot_data or div not in plot_data[group]:
+                continue
+                
+            div_values = plot_data[group][div]
+            if len(div_values) == 0:
+                continue
+            
+            mean_val = np.mean(div_values)
+            sem_val = np.std(div_values) / np.sqrt(len(div_values)) if len(div_values) > 1 else 0
+            
+            x_labels.append(f'Age{div}\n{group}')
+            y_means.append(mean_val)
+            y_errors.append(sem_val)
+            colors.append(get_plot_color('nodebyage', data, group))
+    
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=y_means,
+            error_y=dict(type='data', array=y_errors, visible=True, color='black', thickness=2, width=4),
+            marker_color=colors,
+            marker_line=dict(color='black', width=1),
+            opacity=0.8,
+            hovertemplate='%{x}<br>Mean: %{y:.3f}<br>SEM: %{error_y.array:.3f}<extra></extra>'
+        )
+    )
+    
+    # Apply Y-axis controls
+    y_min_final, y_max_final = calculate_y_range(plot_data, y_range_mode, y_min, y_max)
+    
+    fig.update_layout(
+        title=dict(text=f'<b>{title}</b>', x=0.5, font=dict(size=16, color='black')),
+        height=500,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis_title="<b>Age / Group</b>",
+        yaxis_title=f"<b>Mean {get_metric_label(metric)}</b>",
+        font=dict(family='Arial', size=12, color='black'),
+        showlegend=False
+    )
+    
+    fig.update_yaxes(
+        range=[y_min_final, y_max_final],
+        showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.5)',
+        linecolor='black', linewidth=1
+    )
+    
+    return fig
+
+
+# 4. ADD recording-level wrapper functions:
+def create_box_plot_by_group_recording_level(data, metric, title, selected_groups=None, selected_divs=None,
+                                            y_range_mode='auto', y_min=None, y_max=None):
+    """Box plot wrapper for recording-level data"""
+    return create_box_plot_by_group(data, metric, title, selected_groups, selected_divs,
+                                   y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+
+def create_bar_plot_by_group_recording_level(data, metric, title, selected_groups=None, selected_divs=None,
+                                            y_range_mode='auto', y_min=None, y_max=None):
+    """Bar plot wrapper for recording-level data"""
+    return create_bar_plot_by_group(data, metric, title, selected_groups, selected_divs,
+                                   y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+
+def create_box_plot_by_age_recording_level(data, metric, title, selected_groups=None, selected_divs=None,
+                                          y_range_mode='auto', y_min=None, y_max=None):
+    """Box plot by age wrapper for recording-level data"""
+    return create_box_plot_by_age(data, metric, title, selected_groups, selected_divs,
+                                 y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+
+def create_bar_plot_by_age_recording_level(data, metric, title, selected_groups=None, selected_divs=None,
+                                          y_range_mode='auto', y_min=None, y_max=None):
+    """Bar plot by age wrapper for recording-level data"""
+    return create_bar_plot_by_age(data, metric, title, selected_groups, selected_divs,
+                                 y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)

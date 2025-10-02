@@ -446,41 +446,81 @@ def generate_group_colors(groups):
     
     return group_color_map
 
+# def get_mea_nap_colors(neuronal_data, plot_type):
+#     """Get MEA-NAP standard colors based on plot type"""
+    
+#     if 'bygroup' in plot_type.lower():
+#         # X-axis shows ages → use age-based colors (viridis)
+#         available_divs = sorted(neuronal_data.get('divs', []))
+#         age_colors = generate_viridis_colors(len(available_divs))
+        
+#         color_map = {}
+#         fill_color_map = {}
+#         for i, div in enumerate(available_divs):
+#             # color_map[div] = age_colors[i]
+#             color_map[div] = age_colors[i % len(age_colors)]
+#             # Convert to rgba with transparency
+#             hex_color = age_colors[i].lstrip('#')
+#             rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+#             fill_color_map[div] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
+        
+#         return {'line_colors': color_map, 'fill_colors': fill_color_map}
+    
+#     elif 'byage' in plot_type.lower():
+#         # X-axis shows groups → use group-based colors
+#         available_groups = neuronal_data.get('groups', [])
+#         group_color_map = generate_group_colors(available_groups)
+        
+#         fill_color_map = {}
+#         for group, color in group_color_map.items():
+#             hex_color = color.lstrip('#')
+#             rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+#             fill_color_map[group] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
+        
+#         return {'line_colors': group_color_map, 'fill_colors': fill_color_map}
+    
+#     else:
+#         # Fallback to current system
+#         return {'line_colors': MATLAB_COLORS, 'fill_colors': MATLAB_FILL_COLORS}
+
 def get_mea_nap_colors(neuronal_data, plot_type):
-    """Get MEA-NAP standard colors based on plot type"""
+    """Get MEA-NAP color scheme with safe indexing for any number of DIVs"""
     
-    if 'bygroup' in plot_type.lower():
-        # X-axis shows ages → use age-based colors (viridis)
-        available_divs = sorted(neuronal_data.get('divs', []))
-        age_colors = generate_viridis_colors(len(available_divs))
-        
-        color_map = {}
-        fill_color_map = {}
-        for i, div in enumerate(available_divs):
-            color_map[div] = age_colors[i]
-            # Convert to rgba with transparency
-            hex_color = age_colors[i].lstrip('#')
-            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            fill_color_map[div] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
-        
-        return {'line_colors': color_map, 'fill_colors': fill_color_map}
+    # Get unique DIVs from the data
+    divs = sorted(neuronal_data.get('divs', []))
     
-    elif 'byage' in plot_type.lower():
-        # X-axis shows groups → use group-based colors
-        available_groups = neuronal_data.get('groups', [])
-        group_color_map = generate_group_colors(available_groups)
-        
-        fill_color_map = {}
-        for group, color in group_color_map.items():
-            hex_color = color.lstrip('#')
-            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            fill_color_map[group] = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.6)'
-        
-        return {'line_colors': group_color_map, 'fill_colors': fill_color_map}
+    # Expanded MEA-NAP age colors  
+    age_colors = [
+        '#FFD700',  # Yellow
+        '#8A2BE2',  # Purple  
+        '#FF6347',  # Tomato
+        '#32CD32',  # LimeGreen
+        '#1E90FF',  # DodgerBlue
+        '#FF69B4',  # HotPink
+        '#FFA500',  # Orange
+        '#00CED1',  # DarkTurquoise
+        '#9370DB',  # MediumPurple
+        '#20B2AA'   # LightSeaGreen
+    ]
     
-    else:
-        # Fallback to current system
-        return {'line_colors': MATLAB_COLORS, 'fill_colors': MATLAB_FILL_COLORS}
+    # Build color maps with safe indexing
+    line_colors = {}
+    fill_colors = {}
+    
+    for i, div in enumerate(divs):
+        # Use modulo to cycle through colors safely
+        safe_index = i % len(age_colors)
+        base_color = age_colors[safe_index]
+        
+        line_colors[div] = base_color
+        # Create fill color with transparency
+        fill_colors[div] = base_color.replace('#', 'rgba(') + ', 0.6)'
+    
+    # Return the expected dictionary structure
+    return {
+        'line_colors': line_colors,
+        'fill_colors': fill_colors
+    }
 
 def get_plot_color(plot_type, neuronal_data, key):
     """Get the appropriate color for a plot element"""

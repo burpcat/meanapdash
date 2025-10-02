@@ -36,7 +36,15 @@ from utils import (
 # Keep existing visualization imports for backward compatibility
 from components.neuronal_activity import (
     create_half_violin_plot_by_group,
-    create_half_violin_plot_by_age
+    create_half_violin_plot_by_age,
+    create_box_plot_by_group,
+    create_bar_plot_by_group,
+    create_box_plot_by_age,
+    create_bar_plot_by_age,
+    create_box_plot_by_group_recording_level,
+    create_bar_plot_by_group_recording_level,
+    create_box_plot_by_age_recording_level,
+    create_bar_plot_by_age_recording_level
 )
 from components.network_activity import (
     create_network_half_violin_plot_by_group,
@@ -340,41 +348,36 @@ def update_metric_options(current_selection):
     return [lag_style]
 
 def create_neuronal_visualization_main_with_y_axis(processed_data, metric, comparison, title, groups, selected_divs,
-                                                   y_range_mode='auto', y_min=None, y_max=None):
+                                                   plot_type='violin', y_range_mode='auto', y_min=None, y_max=None):
     """
-    UPDATED: Main neuronal visualization function with Y-axis support
-    
-    Args:
-        processed_data: Data processed by metric-specific function
-        metric: The metric name
-        comparison: Type of comparison (nodebygroup, nodebyage, etc.)
-        title: Plot title
-        groups: Selected groups
-        selected_divs: Selected DIVs
-        y_range_mode: 'auto' or 'manual'
-        y_min: Manual Y minimum
-        y_max: Manual Y maximum
-    
-    Returns:
-        Plotly figure
+    UPDATED: Main neuronal visualization with PLOT TYPE SUPPORT and Y-axis controls
     """
-    
-    # Get the field name to use in the data
     field_name = get_metric_field_name(metric)
     
-    # Route to appropriate visualization function WITH Y-AXIS PARAMETERS
+    # Route based on COMPARISON + PLOT TYPE
     if comparison in ['nodebygroup', 'recordingsbygroup']:
-        return create_half_violin_plot_by_group(
-            processed_data, field_name, title, groups, selected_divs,
-            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max
-        )
+        if plot_type == 'violin':
+            return create_half_violin_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                                   y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+        elif plot_type == 'box':
+            return create_box_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                           y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+        elif plot_type == 'bar':
+            return create_bar_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                           y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            
     elif comparison in ['nodebyage', 'recordingsbyage']:
-        return create_half_violin_plot_by_age(
-            processed_data, field_name, title, groups, selected_divs,
-            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max
-        )
-    else:
-        return create_error_plot(f"Unknown comparison type: {comparison}")
+        if plot_type == 'violin':
+            return create_half_violin_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                                 y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+        elif plot_type == 'box':
+            return create_box_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                         y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+        elif plot_type == 'bar':
+            return create_bar_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                         y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+    
+    return create_error_plot(f"Unknown comparison/plot type: {comparison}/{plot_type}")
 
 # @app.callback(
 #     Output('visualization-graph', 'figure'),
@@ -495,7 +498,7 @@ def create_neuronal_visualization_main_with_y_axis(processed_data, metric, compa
      Input("y-max-input", "value")],
     prevent_initial_call=True
 )
-def update_visualization(groups, selected_divs, viz_type, lag, current_selection, data_loaded,
+def update_visualization(groups, selected_divs, plot_type, lag, current_selection, data_loaded,
                         node_group_metric, recording_group_metric, node_age_metric, recording_age_metric,
                         y_axis_mode, y_min, y_max):  # ADD THESE 3 PARAMETERS
     """UPDATED visualization callback with Y-axis support"""
@@ -567,8 +570,14 @@ def update_visualization(groups, selected_divs, viz_type, lag, current_selection
                 title = f"{metric_title}"
             
             # UPDATED: Create the visualization WITH Y-axis parameters
+            # return create_neuronal_visualization_main_with_y_axis(
+            #     processed_data, metric, comparison, title, groups, selected_divs,
+            #     y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max
+            # )
+        
             return create_neuronal_visualization_main_with_y_axis(
                 processed_data, metric, comparison, title, groups, selected_divs,
+                plot_type=plot_type,  # ADD THIS PARAMETER
                 y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max
             )
                 

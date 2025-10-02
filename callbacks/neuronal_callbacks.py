@@ -20,7 +20,15 @@ from components.neuronal_activity import (
     create_recording_level_violin_plot_by_group,
     create_recording_level_violin_plot_by_age,
     create_half_violin_plot_by_age_recording_level,
-    create_half_violin_plot_by_group_recording_level    
+    create_half_violin_plot_by_group_recording_level,
+    create_box_plot_by_group,
+    create_bar_plot_by_group,
+    create_box_plot_by_age,
+    create_bar_plot_by_age,
+    create_box_plot_by_group_recording_level,
+    create_bar_plot_by_group_recording_level,
+    create_box_plot_by_age_recording_level,
+    create_bar_plot_by_age_recording_level
 )
 
 def register_neuronal_callbacks(app):
@@ -34,31 +42,62 @@ def register_neuronal_callbacks(app):
     # =============================================================================
     
     def create_neuronal_visualization_callback(processed_data, metric, comparison, title, groups, selected_divs, 
-                                             y_range_mode='auto', y_min=None, y_max=None):
+                                         plot_type='violin', y_range_mode='auto', y_min=None, y_max=None):
         """
-        Create neuronal visualization for callbacks with Y-axis controls
-        This function is local to avoid circular imports
+        UPDATED: Create neuronal visualization with PLOT TYPE ROUTING and Y-axis support
         """
         from utils.config import get_metric_field_name
         
         # Get the field name to use in the data
         field_name = get_metric_field_name(metric)
         
-        # Route to appropriate visualization function with Y-axis parameters
+        # Route to appropriate visualization function based on COMPARISON + PLOT TYPE
         if comparison == 'nodebygroup':
-            return create_half_violin_plot_by_group(processed_data, field_name, title, groups, selected_divs,
-                                                   y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            if plot_type == 'violin':
+                return create_half_violin_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                                    y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'box':
+                return create_box_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'bar':
+                return create_bar_plot_by_group(processed_data, field_name, title, groups, selected_divs,
+                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+                
         elif comparison == 'nodebyage':
-            return create_half_violin_plot_by_age(processed_data, field_name, title, groups, selected_divs,
-                                                 y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            if plot_type == 'violin':
+                return create_half_violin_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                                    y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'box':
+                return create_box_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'bar':
+                return create_bar_plot_by_age(processed_data, field_name, title, groups, selected_divs,
+                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+                
         elif comparison == 'recordingsbygroup':
-            return create_half_violin_plot_by_group_recording_level(processed_data, field_name, title, groups, selected_divs,
-                                                                   y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            if plot_type == 'violin':
+                return create_half_violin_plot_by_group_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                                    y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'box':
+                return create_box_plot_by_group_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'bar':
+                return create_bar_plot_by_group_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+                
         elif comparison == 'recordingsbyage':
-            return create_half_violin_plot_by_age_recording_level(processed_data, field_name, title, groups, selected_divs,
-                                                                 y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
-        else:
-            return create_error_plot(f"Unknown comparison type: {comparison}")
+            if plot_type == 'violin':
+                return create_half_violin_plot_by_age_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                                    y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'box':
+                return create_box_plot_by_age_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+            elif plot_type == 'bar':
+                return create_bar_plot_by_age_recording_level(processed_data, field_name, title, groups, selected_divs,
+                                                            y_range_mode=y_range_mode, y_min=y_min, y_max=y_max)
+        
+        # Fallback for unknown combination
+        return create_error_plot(f"Unknown comparison/plot type: {comparison}/{plot_type}")
     
     # =============================================================================
     # Y-AXIS CONTROL CALLBACKS - NEW ADDITIONS
@@ -215,9 +254,9 @@ def register_neuronal_callbacks(app):
             metric_title = get_metric_title(metric)
             title = f"{metric_title} by Group"
             
-            # Create the visualization with Y-axis parameters
+            # Create the visualization with Y-axis parameters        
             return create_neuronal_visualization_callback(processed_data, metric, 'nodebygroup', title, groups, selected_divs,
-                                                         y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max)
+                                                 plot_type=plot_type, y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max)
             
         except Exception as e:
             print(f"❌ Error in node-by-group plot: {e}")
@@ -259,7 +298,7 @@ def register_neuronal_callbacks(app):
             title = f"{metric_title} by Age"
             
             # Create the visualization with Y-axis parameters
-            return create_neuronal_visualization_callback(processed_data, metric, 'nodebyage', title, groups, selected_divs,
+            return create_neuronal_visualization_callback(processed_data, metric, 'nodebyage', title, groups, selected_divs,plot_type=plot_type,
                                                          y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max)
             
         except Exception as e:
@@ -278,7 +317,7 @@ def register_neuronal_callbacks(app):
          Input("y-min-input", "value"),
          Input("y-max-input", "value")]
     )
-    def update_neuronal_recording_group_plot(metric, plot_type, groups, selected_divs, data_loaded, 
+    def update_neuronal_recording_group_plot(metric, groups, selected_divs, plot_type, data_loaded, 
                                            y_axis_mode, y_min, y_max):
         """Update recording-by-group plot with Y-axis controls"""
         
@@ -302,7 +341,7 @@ def register_neuronal_callbacks(app):
             title = f"{metric_title} by Group"
             
             # Create the visualization with Y-axis parameters
-            return create_neuronal_visualization_callback(processed_data, metric, 'recordingsbygroup', title, groups, selected_divs,
+            return create_neuronal_visualization_callback(processed_data, metric, 'recordingsbygroup', title, groups, selected_divs,plot_type=plot_type,
                                                          y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max)
             
         except Exception as e:
@@ -321,7 +360,7 @@ def register_neuronal_callbacks(app):
          Input("y-min-input", "value"),
          Input("y-max-input", "value")]
     )
-    def update_neuronal_recording_age_plot(metric, plot_type, groups, selected_divs, data_loaded, 
+    def update_neuronal_recording_age_plot(metric, groups, selected_divs, plot_type, data_loaded, 
                                          y_axis_mode, y_min, y_max):
         """Update recording-by-age plot with Y-axis controls"""
         
@@ -345,7 +384,7 @@ def register_neuronal_callbacks(app):
             title = f"{metric_title} by Age"
             
             # Create the visualization with Y-axis parameters
-            return create_neuronal_visualization_callback(processed_data, metric, 'recordingsbyage', title, groups, selected_divs,
+            return create_neuronal_visualization_callback(processed_data, metric, 'recordingsbyage', title, groups, selected_divs,plot_type=plot_type,
                                                          y_range_mode=y_axis_mode, y_min=y_min, y_max=y_max)
             
         except Exception as e:

@@ -161,7 +161,7 @@ def create_filter_sidebar():
         html.Div([
             html.Label('Plot Type:', style={'fontWeight': 'bold'}),
             dcc.RadioItems(
-                id='neuronal-plot-type',
+                id='plot-type-selector',
                 options=PLOT_TYPE_OPTIONS,
                 value='violin',
                 inline=True,
